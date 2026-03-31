@@ -1,4 +1,6 @@
-const BASE_URL = "http://127.0.0.1:8000";
+import { BACKEND_URL } from "./config";
+
+const BASE_URL = BACKEND_URL;
 
 export type MarketStatus = "active" | "inactive" | "closed" | "archived";
 export type Side = "up" | "down";

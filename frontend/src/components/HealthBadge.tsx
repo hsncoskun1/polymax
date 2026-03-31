@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BACKEND_URL } from "../lib/config";
 
 type Status = "checking" | "ok" | "error";
 
@@ -7,7 +8,7 @@ export default function HealthBadge() {
 
   useEffect(() => {
     const check = () => {
-      fetch("http://127.0.0.1:8000/health")
+      fetch(`${BACKEND_URL}/health`)
         .then((r) => {
           setStatus(r.ok ? "ok" : "error");
         })
