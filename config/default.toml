@@ -1,0 +1,15 @@
+[app]
+name = "POLYMAX"
+version = "0.1.0"
+
+[backend]
+host = "127.0.0.1"
+port = 8000
+
+[frontend]
+host = "127.0.0.1"
+port = 5173
+
+[logging]
+level = "INFO"
+format = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
