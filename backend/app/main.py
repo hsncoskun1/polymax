@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api.health import router as health_router
+from .api.markets import router as markets_router
 from .core.logger import setup_logger
 
 logger = setup_logger("polymax.backend")
@@ -24,3 +25,4 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
+app.include_router(markets_router)
