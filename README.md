@@ -6,6 +6,8 @@ Local-first application with launcher + localhost panel architecture.
 - v0.1.1 Backend shell — complete
 - v0.1.2 Frontend shell — complete
 - v0.1.3 Launcher shell — complete
+- v0.2.1 Market registry domain shell — complete
+- v0.2.2 Market registry API — complete
 
 ## Quick Start
 
@@ -35,12 +37,14 @@ cd frontend && npm test
 
 ## Project Structure
 ```
-polymax/
+POLYMAX/
 ├── launcher/main.py        # Starts backend + frontend, opens browser
 ├── backend/
 │   ├── app/
-│   │   ├── api/            # API endpoints
+│   │   ├── api/            # HTTP endpoints (health, markets)
 │   │   ├── core/           # Config, logging
+│   │   ├── domain/
+│   │   │   └── market/     # Market registry domain model
 │   │   └── main.py         # FastAPI entrypoint
 │   └── tests/
 ├── frontend/
@@ -50,7 +54,7 @@ polymax/
 │   │   └── tests/
 │   └── package.json
 ├── config/default.toml     # Central configuration
-└── test-results/           # Test reports
+└── test-results/           # Test reports per milestone
 ```
 
 ## Tech Stack
