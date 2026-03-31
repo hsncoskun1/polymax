@@ -8,6 +8,8 @@ Local-first application with launcher + localhost panel architecture.
 - v0.1.3 Launcher shell — complete
 - v0.2.1 Market registry domain shell — complete
 - v0.2.2 Market registry API — complete
+- v0.2.3 Frontend market list — complete
+- v0.2.4 Frontend API config cleanup — complete
 
 ## Quick Start
 
