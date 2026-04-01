@@ -1,0 +1,318 @@
+# POLYMAX — Discovery / Fetch / Sync Regression Matrix
+
+**Living document — update with every version that changes behaviour in the
+fetch → discovery → sync → API chain.**
+
+Last updated: v0.5.5a (2026-04-01) · Total automated tests: **213**
+
+---
+
+## 1. Purpose and Scope
+
+### What this document verifies
+
+Every scenario in the fetch → discovery → sync → API production path that
+must remain stable across future releases. It is the companion to the
+automated test suite — each scenario maps to one or more pytest tests.
+
+### Layers covered
+
+| Layer | Key component | Responsibility |
+|-------|--------------|----------------|
+| **Fetch** | `PolymarketFetchService` | HTTP → `FetchedMarket` normalisation only; no candidate filtering |
+| **Discovery** | `DiscoveryService` | Sole candidate-selection authority; applies all 5 rejection rules |
+| **Sync** | `MarketSyncService` | Orchestration — uses discovery output to write to registry |
+| **API** | `POST /discover`, `POST /sync` | HTTP interface; surfaces discovery/sync results |
+
+### Explicitly out of scope
+
+- Strategy / risk / entry timing (when is it too late to enter a market?)
+- Force sell / settlement / position management
+- Trading execution / order routing
+- Runtime remaining-time gating
+- Frontend rendering / UI components
+- Database persistence (in-memory registry only at this stage)
+
+---
+
+## 2. Version Changelog
+
+| Version | Key Behaviour Change | New Test Behaviour | Regression to Protect | Retired Behaviour |
+|---------|---------------------|-------------------|----------------------|-------------------|
+| v0.1.1 | Backend shell, `/health` endpoint | Health endpoint returns 200 + JSON body | — | — |
+| v0.2.1 | Domain `Market` model, `InMemoryMarketRegistry` | CRUD operations, duplicate/not-found exceptions, status transitions | — | — |
+| v0.2.2 | Markets REST API (5 CRUD endpoints) | HTTP 200/201/404/409/422 per operation | — | — |
+| v0.3.1 | `PolymarketClient` shell (httpx, read-only) | Timeout/HTTP errors raise typed exceptions | — | — |
+| v0.3.2 | `PolymarketFetchService` + `FetchedMarket` DTO | Normalisation: id, question, slug, active, closed, dates | — | — |
+| v0.3.3 | `MarketMapper` + `MarketSyncService` (single-shot) | fetch → map → registry write; UP+DOWN per market | — | — |
+| v0.3.4 | `POST /sync` endpoint | Sync response shape (fetched/mapped/written/skipped counts) | — | — |
+| v0.3.7 | `enableOrderBook` + `tokens` gates added to `_is_5m_candidate` | AMM-only and no-token markets filtered | fetch still returns all | — |
+| v0.3.8 | Duration gate `[240, 360]s` added to `_is_5m_candidate` | Markets outside 5m window filtered | fetch still returns all | — |
+| v0.3.9 | `extract_symbol()` for question/slug → coin ticker | BTC/ETH/SOL/etc. extracted; unknown → fallback | Symbol not a rejection criterion | — |
+| v0.4.1 | `DiscoveryService` shell (3 rules: INACTIVE, MISSING_DATES, DURATION_OUT_OF_RANGE) | Rejection breakdown tracking, DiscoveryResult | — | — |
+| v0.4.2 | `POST /discover` endpoint | fetch → evaluate, no registry write | — | — |
+| v0.5.1 | `end_date` field on domain `Market` + mapper | `end_date` propagated from FetchedMarket → domain Market | — | — |
+| v0.5.2 | `MarketSyncService` routes through `DiscoveryService` | Sync uses discovery candidates; no dual candidate path | `fetch_candidates()` still existed but bypassed | — |
+| v0.5.3 | `enable_order_book` + `tokens` fields on `FetchedMarket`; `NO_ORDER_BOOK` + `EMPTY_TOKENS` rules in `DiscoveryService` | 5-rule discovery; order-book and token gates at FetchedMarket level | All prior rules still apply | `_is_5m_candidate` was duplicate (removed next version) |
+| v0.5.4 | `fetch_candidates()` and `_is_5m_candidate()` removed | `fetch_markets()` is the only public fetcher method | Fetcher must not filter | ✅ `fetch_candidates()` retired; ✅ `_is_5m_candidate()` retired |
+| v0.5.5 | Integration test suite — 4 contracts locked (C1–C4) | End-to-end chain from raw dict to API response | All prior unit-level contracts | — |
+| v0.5.5a | Duration semantics locked — total duration not remaining time | Near-expiry valid markets always pass discovery | Duration uses `end_date − source_timestamp` | — |
+
+---
+
+## 3. Test Matrix
+
+Each row is an independently testable scenario.
+
+**Priority key:**
+- `P0` — Release-blocking: failure means the system is fundamentally broken
+- `P1` — Important: failure is a significant regression
+- `P2` — Helpful: edge-case or defensive coverage
+
+---
+
+### 3.1 Fetch Normalisation Scenarios
+
+| ID | Pri | Introduced | Scenario | Expected Result | Automated Test |
+|----|-----|------------|----------|-----------------|----------------|
+| FETCH-001 | P0 | v0.5.4 | `fetch_markets()` returns all records including inactive, AMM-only, no-tokens, missing-date, wrong-duration markets | All records returned; no silent filtering | `TestFetchMarkets::test_no_candidate_filtering_applied` · `TestFetcherIsNormaliserNotSelector::test_fetch_returns_all_markets_including_invalid_ones` |
+| FETCH-002 | P0 | v0.5.5 | Field values that DiscoveryService checks are preserved intact | `active=False`, `enable_order_book=False`, `tokens=[]` survive normalisation | `TestFetcherIsNormaliserNotSelector::test_fetch_preserves_field_values_discovery_needs_to_evaluate` |
+| FETCH-003 | P1 | v0.3.2 | Records with missing or empty `id` are skipped with a warning | Skipped, all others returned | `TestFetchMarkets::test_skips_record_with_missing_id` |
+| FETCH-004 | P2 | v0.3.2 | `limit` parameter forwarded to `client.get_markets()` | Called with correct limit | `TestFetchMarkets::test_passes_limit_to_client` |
+| FETCH-005 | P1 | v0.3.2 | Client errors (`PolymarketTimeoutError`) propagate to caller | Exception re-raised | `TestFetchMarkets::test_propagates_client_error` |
+| FETCH-006 | P1 | v0.3.2 | ISO-8601 `startDate` / `endDate` parsed to timezone-aware datetime | Correct datetime values; `None` on absent/invalid | `TestNormalization::test_parses_source_timestamp` · `test_end_date_none_when_absent` · `test_source_timestamp_none_on_unparseable_date` |
+| FETCH-007 | P1 | v0.3.2 | Optional fields (`slug`, `question`, `event_id`) normalise correctly | `slug=None` when absent; `question=""` when absent; `event_id` from first event | `TestNormalization::test_slug_none_when_absent` · `test_event_id_is_none_when_events_absent` |
+| FETCH-008 | P1 | v0.5.3 | `enableOrderBook` field: `True→True`, `False→False`, absent→`None` | Conservative `None` for absent field | `TestNormalization::test_enable_order_book_true_when_present` · `test_enable_order_book_false_when_false` · `test_enable_order_book_none_when_absent` |
+| FETCH-009 | P1 | v0.5.3 | `tokens` field: list preserved, `[]` preserved, absent→`None`, non-list→`None` | Faithful representation; `None` only for structural absence | `TestNormalization::test_tokens_list_preserved` · `test_tokens_empty_list_preserved` · `test_tokens_none_when_absent` · `test_tokens_none_when_not_a_list` |
+
+---
+
+### 3.2 Discovery Acceptance Scenarios
+
+| ID | Pri | Introduced | Scenario | Expected Result | Automated Test |
+|----|-----|------------|----------|-----------------|----------------|
+| DISC-ACC-001 | P0 | v0.4.1 | Market passes all 5 rules (active, order book, tokens, dates, duration) | `candidate_count=1` | `TestCandidateSelection::test_valid_market_is_a_candidate` · `TestDiscoveryIsTheSoleSelector::test_valid_5m_market_becomes_candidate` |
+| DISC-ACC-002 | P1 | v0.4.1 | Multiple valid markets all become candidates | `candidate_count=N` | `TestCandidateSelection::test_multiple_valid_markets_all_become_candidates` |
+| DISC-ACC-003 | P1 | v0.3.8 | Duration exactly at lower boundary (240s) | Accepted | `TestDurationRejection::test_passes_lower_boundary` |
+| DISC-ACC-004 | P1 | v0.3.8 | Duration exactly at upper boundary (360s) | Accepted | `TestDurationRejection::test_passes_upper_boundary` |
+| DISC-ACC-005 | P0 | v0.5.5a | Near-expiry market: total duration valid, remaining time small | Accepted — discovery does not check remaining time | `TestDurationRejection::test_duration_filter_uses_total_market_duration_not_remaining_time` · `TestDurationRejection::test_valid_5m_market_near_expiry_is_not_rejected_by_discovery` · `TestDurationSemantics::*` |
+| DISC-ACC-006 | P2 | v0.3.9 | Symbol not extractable from question or slug | Still a candidate — symbol fallback, never a rejection | `TestSymbolFallbackNotRejection::*` |
+
+---
+
+### 3.3 Discovery Rejection Scenarios
+
+| ID | Pri | Introduced | Rejection Reason | Input Condition | Automated Test |
+|----|-----|------------|-----------------|-----------------|----------------|
+| DISC-REJ-001 | P0 | v0.4.1 | `INACTIVE` | `active=False` | `TestInactiveRejection::test_inactive_market_is_rejected` · `TestDiscoveryIsTheSoleSelector::test_inactive_active_false_fetch_passes_discovery_rejects` |
+| DISC-REJ-002 | P0 | v0.4.1 | `INACTIVE` | `closed=True` | `TestInactiveRejection::test_closed_market_is_rejected` · `TestDiscoveryIsTheSoleSelector::test_inactive_closed_true_fetch_passes_discovery_rejects` |
+| DISC-REJ-003 | P1 | v0.4.1 | `INACTIVE` | `active=False` and `closed=True` | Counted as one rejection | `TestInactiveRejection::test_inactive_and_closed_counts_as_one_rejection` |
+| DISC-REJ-004 | P0 | v0.5.3 | `NO_ORDER_BOOK` | `enable_order_book=False` | `TestNoOrderBookRejection::test_enable_order_book_false_is_rejected` · `TestDiscoveryIsTheSoleSelector::test_no_order_book_false_fetch_passes_discovery_rejects` |
+| DISC-REJ-005 | P0 | v0.5.3 | `NO_ORDER_BOOK` | `enable_order_book=None` (field absent) | Conservative reject | `TestNoOrderBookRejection::test_enable_order_book_none_is_rejected` · `TestDiscoveryIsTheSoleSelector::test_no_order_book_absent_field_fetch_passes_discovery_rejects` |
+| DISC-REJ-006 | P0 | v0.5.3 | `EMPTY_TOKENS` | `tokens=[]` | `TestEmptyTokensRejection::test_empty_tokens_list_is_rejected` · `TestDiscoveryIsTheSoleSelector::test_empty_tokens_list_fetch_passes_discovery_rejects` |
+| DISC-REJ-007 | P0 | v0.5.3 | `EMPTY_TOKENS` | `tokens=None` (field absent) | Conservative reject | `TestEmptyTokensRejection::test_tokens_none_is_rejected` |
+| DISC-REJ-008 | P0 | v0.4.1 | `MISSING_DATES` | `source_timestamp=None` | `TestMissingDatesRejection::test_missing_source_timestamp_is_rejected` · `TestDiscoveryIsTheSoleSelector::test_missing_start_date_fetch_passes_discovery_rejects` |
+| DISC-REJ-009 | P0 | v0.4.1 | `MISSING_DATES` | `end_date=None` | `TestMissingDatesRejection::test_missing_end_date_is_rejected` · `TestDiscoveryIsTheSoleSelector::test_missing_end_date_fetch_passes_discovery_rejects` |
+| DISC-REJ-010 | P0 | v0.3.8 | `DURATION_OUT_OF_RANGE` | Total duration < 240s (e.g., 120s, 180s, 239s) | `TestDurationRejection::test_rejects_one_second_below_lower_boundary` · `test_duration_out_of_range_rejects_120s_total_duration` · `test_duration_out_of_range_rejects_180s_total_duration` |
+| DISC-REJ-011 | P0 | v0.3.8 | `DURATION_OUT_OF_RANGE` | Total duration > 360s (e.g., 600s, 3600s, 86400s) | `TestDurationRejection::test_rejects_one_second_above_upper_boundary` · `test_duration_out_of_range_rejects_600s_total_duration` · `test_rejects_hourly_duration` |
+
+---
+
+### 3.4 Discovery Rule Priority Scenarios
+
+Rules are applied in order; the first failing rule wins.
+
+| ID | Pri | Scenario | Expected First Reason | Automated Test |
+|----|-----|---------|-----------------------|----------------|
+| DISC-PRI-001 | P1 | `active=False` + `source_timestamp=None` | `INACTIVE` (not `MISSING_DATES`) | `TestInactiveRejection::test_inactive_takes_priority_over_missing_dates` |
+| DISC-PRI-002 | P1 | `active=False` + `enable_order_book=False` | `INACTIVE` (not `NO_ORDER_BOOK`) | `TestInactiveRejection::test_inactive_takes_priority_over_no_order_book` |
+| DISC-PRI-003 | P1 | `enable_order_book=False` + `tokens=[]` | `NO_ORDER_BOOK` (not `EMPTY_TOKENS`) | `TestNoOrderBookRejection::test_no_order_book_takes_priority_over_empty_tokens` |
+| DISC-PRI-004 | P1 | `enable_order_book=False` + `source_timestamp=None` | `NO_ORDER_BOOK` (not `MISSING_DATES`) | `TestNoOrderBookRejection::test_no_order_book_takes_priority_over_missing_dates` |
+| DISC-PRI-005 | P1 | `tokens=[]` + `source_timestamp=None` | `EMPTY_TOKENS` (not `MISSING_DATES`) | `TestEmptyTokensRejection::test_empty_tokens_takes_priority_over_missing_dates` |
+| DISC-PRI-006 | P1 | `source_timestamp=None` + wrong duration | `MISSING_DATES` (not `DURATION_OUT_OF_RANGE`) | `TestMissingDatesRejection::test_missing_dates_takes_priority_over_duration` |
+
+---
+
+### 3.5 Duration Semantics Scenarios
+
+| ID | Pri | Scenario | What Is Verified | Automated Test |
+|----|-----|----------|-----------------|----------------|
+| DUR-001 | P0 | Market started 4m ago, ends in 1m (total=300s, remaining=60s) | Accepted — total duration checked, not remaining | `TestDurationRejection::test_duration_filter_uses_total_market_duration_not_remaining_time` · `TestDurationSemantics::test_near_expiry_valid_5m_market_passes_full_pipeline` |
+| DUR-002 | P0 | Market in final 30 seconds (total=300s, remaining=30s) | Accepted — structurally valid 5m market | `TestDurationRejection::test_valid_5m_market_near_expiry_is_not_rejected_by_discovery` · `TestDurationSemantics::test_final_30s_market_with_300s_total_duration_is_candidate` |
+| DUR-003 | P1 | Duration exactly 240s (lower boundary) | Accepted | `TestDurationRejection::test_passes_lower_boundary` |
+| DUR-004 | P1 | Duration exactly 360s (upper boundary) | Accepted | `TestDurationRejection::test_passes_upper_boundary` |
+| DUR-005 | P1 | Duration 239s (one below lower boundary) | `DURATION_OUT_OF_RANGE` | `TestDurationRejection::test_rejects_one_second_below_lower_boundary` |
+| DUR-006 | P1 | Duration 361s (one above upper boundary) | `DURATION_OUT_OF_RANGE` | `TestDurationRejection::test_rejects_one_second_above_upper_boundary` |
+| DUR-007 | P0 | Near-expiry valid + short + long + inactive in same batch | Only near-expiry valid is a candidate | `TestDurationRejection::test_mixed_payload_keeps_valid_5m_market_even_when_near_expiry` · `TestDurationSemantics::test_mixed_payload_near_expiry_valid_market_survives_with_invalid_durations` |
+
+---
+
+### 3.6 Mixed Payload Scenarios
+
+| ID | Pri | Scenario | Expected Result | Automated Test |
+|----|-----|----------|-----------------|----------------|
+| MIX-001 | P0 | Payload with 1 valid + 1 per each rejection reason (6 markets total) | `candidate_count=1`; all 5 rejection reasons counted | `TestRejectionBreakdown::test_mixed_reasons_counted_separately` · `TestDiscoveryIsTheSoleSelector::test_mixed_payload_only_valid_candidates_survive` |
+| MIX-002 | P1 | All markets invalid (different reasons) | `candidate_count=0`; breakdown sums to total | `TestRejectionBreakdown::test_rejected_count_equals_sum_of_breakdown` |
+| MIX-003 | P1 | All markets valid | `candidate_count=fetched_count` | `TestCandidateSelection::test_multiple_valid_markets_all_become_candidates` |
+| MIX-004 | P0 | Near-expiry valid + structurally-invalid duration markets | Near-expiry valid survives | `TestDurationSemantics::test_mixed_payload_near_expiry_valid_market_survives_with_invalid_durations` |
+| MIX-005 | P1 | `fetched_count = candidate_count + rejected_count` invariant | Always holds | `TestRejectionBreakdown::test_fetched_equals_candidate_plus_rejected` |
+
+---
+
+### 3.7 Sync Propagation Scenarios
+
+| ID | Pri | Scenario | Expected Result | Automated Test |
+|----|-----|----------|-----------------|----------------|
+| SYNC-001 | P0 | Valid candidates written to registry as UP+DOWN pairs | Registry contains exactly `candidate_count × 2` entries | `TestMarketSyncService::test_full_happy_path` · `TestSyncRespectsDiscovery::test_sync_writes_only_discovery_candidates` |
+| SYNC-002 | P0 | Invalid (rejected) markets must not appear in registry | Registry free of rejected market IDs | `TestSyncDiscoveryIntegration::test_inactive_market_not_written` · `TestSyncRespectsDiscovery::test_sync_writes_only_discovery_candidates` |
+| SYNC-003 | P0 | All invalid payload → registry stays empty | `written=0`, `len(registry)=0` | `TestSyncRespectsDiscovery::test_sync_all_invalid_payload_writes_nothing` |
+| SYNC-004 | P1 | Duplicate run → `skipped_duplicate` counted, no double-write | `written=0`, `skipped_duplicate=N` on second run | `TestMarketSyncService::test_duplicate_run_counts_skipped_duplicate` |
+| SYNC-005 | P1 | Mapping failure (invalid market_id) → `skipped_mapping` counted | Other valid markets still written | `TestMarketSyncService::test_mapping_failure_is_counted_and_skipped` |
+| SYNC-006 | P1 | Client error → registry untouched | Exception propagates; `len(registry)=0` | `TestMarketSyncService::test_client_error_propagates` |
+| SYNC-007 | P0 | Near-expiry valid market written to registry via full sync | `{id}-up` and `{id}-down` in registry | `TestDurationSemantics::test_sync_writes_near_expiry_valid_market` |
+| SYNC-008 | P1 | `DiscoveryService` can be injected (testability / override) | Custom discovery service evaluate() is called | `TestSyncDiscoveryIntegration::test_discovery_service_is_injected_and_used` |
+
+---
+
+### 3.8 API Response Scenarios
+
+| ID | Pri | Scenario | Expected Result | Automated Test |
+|----|-----|----------|-----------------|----------------|
+| API-001 | P1 | `POST /discover` returns 200 | `status_code=200` | `test_discover_returns_200` |
+| API-002 | P1 | `POST /discover` response shape | Has `fetched_count`, `candidate_count`, `rejected_count`, `rejection_breakdown` keys | `test_discover_response_shape` |
+| API-003 | P0 | `POST /discover` all valid → `candidate_count=fetched_count` | Counts match | `test_discover_all_valid_become_candidates` · `test_discover_endpoint_all_valid_payload` |
+| API-004 | P0 | `POST /discover` mixed payload → only valid candidates counted | `candidate_count < fetched_count` | `test_discover_no_candidates_all_rejected` · `test_discover_endpoint_mixed_payload_returns_only_candidates` |
+| API-005 | P0 | `POST /discover` does NOT write to registry | `len(registry)=0` after call | `test_discover_does_not_write_to_registry` |
+| API-006 | P1 | `POST /discover` timeout → 504 | `status_code=504` | `test_discover_timeout_returns_504` |
+| API-007 | P1 | `POST /discover` upstream HTTP error → 502 | `status_code=502` | `test_discover_upstream_http_error_returns_502` |
+| API-008 | P1 | `rejection_breakdown` contains all 5 reason keys | Keys: `inactive`, `no_order_book`, `empty_tokens`, `missing_dates`, `duration_out_of_range` | `test_discover_breakdown_all_keys_present` |
+| API-009 | P1 | `POST /sync` response shape | Has `fetched_count`, `mapped_count`, `written_count`, etc. | `test_sync_success_response_shape` |
+| API-010 | P1 | `POST /sync` timeout → 504 | `status_code=504` | `test_sync_timeout_returns_504` |
+| API-011 | P1 | `POST /sync` HTTP error → 502 | `status_code=502` | `test_sync_upstream_http_error_returns_502` |
+
+---
+
+### 3.9 Edge Case Scenarios
+
+| ID | Pri | Scenario | Expected Result | Automated Test |
+|----|-----|----------|-----------------|----------------|
+| EDGE-001 | P2 | Empty market list input to `DiscoveryService.evaluate([])` | `fetched_count=0`, all breakdown keys present with 0 | `TestCandidateSelection::test_empty_input_returns_zero_result` |
+| EDGE-002 | P2 | All 5 breakdown keys always present (even when count=0) | Never `KeyError` | `TestRejectionBreakdown::test_all_reason_keys_present_in_empty_result` |
+| EDGE-003 | P2 | Multiple markets with same rejection reason | Breakdown count accumulates correctly | `TestRejectionBreakdown::test_multiple_same_reason_accumulates` |
+| EDGE-004 | P2 | `candidate_ids` preserved in input order | Order maintained | `TestCandidateSelection::test_candidate_ids_preserved_in_order` |
+| EDGE-005 | P2 | Symbol extraction — no coin match | Fallback to slug then market_id; still a candidate | `TestSymbolFallbackNotRejection::test_market_with_no_extractable_symbol_and_slug_is_still_a_candidate` |
+| EDGE-006 | P2 | `event_id` absent → fallback to `market_id` in mapper | Domain Market gets market_id as event_id | `TestMarketMapper::test_falls_back_to_market_id_when_event_id_none` |
+| EDGE-007 | P2 | `PolymarketClient.ping()` failure modes | Returns False (never raises) | `TestPing::test_returns_false_on_timeout` · `test_returns_false_on_http_error` |
+
+---
+
+### 3.10 Retired / Deprecated Scenarios
+
+These scenarios **must not** be used as regression criteria. They described
+behaviour that was intentionally removed.
+
+| ID | Retired In | Scenario | Why Retired |
+|----|-----------|----------|-------------|
+| RET-001 | v0.5.4 | `fetch_candidates()` pre-filters markets before normalisation | Method removed — DiscoveryService is the sole candidate filter |
+| RET-002 | v0.5.4 | `_is_5m_candidate()` raw-dict gate inside fetcher | Method removed — was duplicate logic; DiscoveryService covers all rules |
+| RET-003 | v0.5.4 | `TestFetchCandidates` test class (10 tests) | Tests for removed method; deleted |
+| RET-004 | v0.5.4 | `TestDurationFilter` test class (13 tests) | Tests for removed method; deleted |
+
+---
+
+## 4. Automation Mapping
+
+### Current coverage summary
+
+| Category | Total Scenarios | Fully Automated | Partially Automated | Manual Only |
+|----------|-----------------|-----------------|---------------------|-------------|
+| Fetch | 9 | 9 | 0 | 0 |
+| Discovery Acceptance | 6 | 6 | 0 | 0 |
+| Discovery Rejection | 11 | 11 | 0 | 0 |
+| Rule Priority | 6 | 6 | 0 | 0 |
+| Duration Semantics | 7 | 7 | 0 | 0 |
+| Mixed Payload | 5 | 5 | 0 | 0 |
+| Sync Propagation | 8 | 8 | 0 | 0 |
+| API Response | 11 | 11 | 0 | 0 |
+| Edge Cases | 7 | 7 | 0 | 0 |
+| **Total** | **70** | **70** | **0** | **0** |
+
+### Known automation gaps
+
+| Gap | Risk | Recommended Action |
+|-----|------|-------------------|
+| Real Gamma API integration (live HTTP) | API shape changes undetected | E2E/contract test suite (future milestone) |
+| `POST /sync` endpoint at integration level (real fetcher+discovery, mock client) | Sync endpoint response mismatch | Add `test_sync_endpoint_integration.py` alongside discovery flow |
+| Concurrent registry writes | Race condition on parallel syncs | Applicable only when scheduler is added |
+| `end_date` field on `POST /sync` response | Payload drift | Currently no sync response includes per-market details |
+
+---
+
+## 5. Regression Execution Plan
+
+### Smoke regression (run on every PR merge)
+
+**Criteria:** P0 scenarios only — fundamental contracts.
+
+```bash
+python -m pytest backend/tests/ -m "not slow" -k "
+  test_valid_market_is_a_candidate or
+  test_no_candidate_filtering_applied or
+  test_fetch_returns_all_markets_including_invalid_ones or
+  test_duration_filter_uses_total_market_duration_not_remaining_time or
+  test_valid_5m_market_near_expiry_is_not_rejected_by_discovery or
+  test_inactive_market_is_rejected or
+  test_enable_order_book_false_is_rejected or
+  test_empty_tokens_list_is_rejected or
+  test_missing_source_timestamp_is_rejected or
+  test_sync_writes_only_discovery_candidates or
+  test_sync_all_invalid_payload_writes_nothing or
+  test_discover_does_not_write_to_registry or
+  test_discover_endpoint_mixed_payload_returns_only_candidates or
+  TestDiscoveryIsTheSoleSelector or
+  TestSyncRespectsDiscovery or
+  TestDurationSemantics
+" -v
+```
+
+Covers: FETCH-001/002, DISC-ACC-001/005, DISC-REJ-001/004/005/006/007/008/009/010/011, DUR-001/002/007, SYNC-001/002/003/007, API-003/004/005
+
+### Standard regression (run before every release)
+
+**Criteria:** P0 + P1 scenarios — all production-relevant contracts.
+
+```bash
+python -m pytest backend/tests/ -v
+```
+
+All 213 tests. Current runtime: ~0.7 seconds.
+
+### Full regression (run after major architecture changes)
+
+**Criteria:** All active scenarios + manual review of retired scenarios.
+
+```bash
+# Run all automated tests
+python -m pytest backend/tests/ -v
+
+# Manual checklist:
+# [ ] Verify fetch_candidates() does not exist in market_fetcher.py
+# [ ] Verify _is_5m_candidate() does not exist in market_fetcher.py
+# [ ] Verify DiscoveryService has all 5 rejection rules
+# [ ] Verify no production caller bypasses DiscoveryService for candidate selection
+# [ ] Verify duration calculation uses end_date - source_timestamp (grep for "now()")
+```
+
+---
+
+## 6. How to Update This Document
+
+When a new version changes behaviour in the covered layers:
+
+1. Add a row to **Section 2** (Version Changelog)
+2. Add new scenarios to the relevant **Section 3.x** table
+3. If behaviour is removed, add a row to **Section 3.10** (Retired)
+4. Update the **automation mapping** counts in Section 4
+5. Update the "Last updated" line at the top
+
+**Do not delete retired scenarios** — they record intentional decisions.
