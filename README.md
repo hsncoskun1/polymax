@@ -23,9 +23,7 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.3.5 Admin sync action UI (Sync now button + result summary) — complete
 - v0.3.6 Sync → market list refresh flow (refreshKey callback chain) — complete
 - v0.3.7 5m candidate cleanup (enableOrderBook + tokens gates) — complete
-
-### In progress
-- v0.3.8 5m duration filter (endDate-based candidate gate) — pending
+- v0.3.8 5m duration filter (endDate-based candidate gate, [240-360] s window) — complete
 
 ## Quick Start
 
