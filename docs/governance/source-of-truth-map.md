@@ -76,6 +76,17 @@ kept in sync manually. Backend is authoritative; frontend is a mirror.
 
 ---
 
+## Health and version
+
+| Information | Authoritative source | Notes |
+|-------------|---------------------|-------|
+| Backend version string | `config/default.toml` → `[app] version` | Read by `health.py` via `load_config()` |
+| Backend health response | `GET /health` → `{"status","service","version"}` | `version` derived from config |
+| Backend version in UI | `AdminPanel` fetches `/health` on mount | Displayed in "Backend" StatusChip |
+| Frontend version | **Not available** | `package.json version = "0.0.0"` (Vite default); no build-time injection configured; Frontend chip shows "—" |
+
+**Rule:** Backend version has one authoritative source (`config/default.toml`) and one authoritative endpoint (`GET /health`). Frontend version has no authoritative source in this repo at this stage; do not fabricate a value.
+
 ## Network and connectivity
 
 | Information | Authoritative source | Drift risk |

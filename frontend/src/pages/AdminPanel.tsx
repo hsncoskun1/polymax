@@ -1,16 +1,26 @@
+import { useEffect, useState } from "react";
 import DiscoverAction from "../components/DiscoverAction";
 import SyncAction from "../components/SyncAction";
+import { fetchHealth } from "../lib/api";
 
 interface AdminPanelProps {
   onSyncDone?: () => void;
 }
 
 export default function AdminPanel({ onSyncDone }: AdminPanelProps) {
+  const [backendVersion, setBackendVersion] = useState<string>("…");
+
+  useEffect(() => {
+    fetchHealth()
+      .then((h) => setBackendVersion(h.version ?? "—"))
+      .catch(() => setBackendVersion("—"));
+  }, []);
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Admin Panel</h1>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatusChip label="Backend" value="—" />
+        <StatusChip label="Backend" value={backendVersion} />
         <StatusChip label="Frontend" value="—" />
         <StatusChip label="Uptime" value="—" />
       </div>
