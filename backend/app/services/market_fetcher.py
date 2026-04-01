@@ -1,8 +1,9 @@
 """Polymarket market fetch service.
 
 Fetches raw market records from the Gamma API and normalises them into
-FetchedMarket DTOs.  This layer has no knowledge of the registry and does
-not write anything — callers decide what to do with the results.
+FetchedMarket DTOs.  This layer is a pure normalisation pass — it applies
+no candidate filtering.  Candidate selection is the sole responsibility of
+DiscoveryService.  Callers decide what to do with the results.
 """
 from __future__ import annotations
 
@@ -16,10 +17,8 @@ from ..integrations.polymarket.config import DEFAULT_MARKET_LIMIT
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# 5m duration window (seconds) — tolerant ±1 minute around the 5m target.
-# Markets whose endDate − startDate falls outside this range are not
-# considered 5m candidates.  These are NOT final discovery thresholds;
-# they will be tightened once real 5m market data is observed in production.
+# 5m duration window (seconds) — used by DiscoveryService for candidate gating.
+# Tolerant ±1 minute around the 5m target.
 # ---------------------------------------------------------------------------
 CANDIDATE_DURATION_MIN_SECONDS: int = 240   # 4 minutes
 CANDIDATE_DURATION_MAX_SECONDS: int = 360   # 6 minutes
@@ -62,6 +61,7 @@ class PolymarketFetchService:
 
     Does NOT write to the registry.
     Does NOT perform discovery or side/timeframe classification.
+    Does NOT filter candidates — that is DiscoveryService's responsibility.
     Propagates client-level errors (PolymarketError subclasses) to the caller.
     """
 
@@ -76,21 +76,10 @@ class PolymarketFetchService:
         """Return all normalised markets from Polymarket.
 
         Records with a missing or empty *id* are skipped with a warning.
-        No candidate filtering is applied.
+        No candidate filtering is applied — pass the result to
+        DiscoveryService.evaluate() to obtain candidates.
         """
         return self._fetch_and_normalize(self._client.get_markets(limit=limit))
-
-    def fetch_candidates(self, limit: int = DEFAULT_MARKET_LIMIT) -> list[FetchedMarket]:
-        """Return normalised markets filtered to 5m candidates.
-
-        A record must pass _is_5m_candidate() before normalisation.
-        Records that fail the gate are discarded silently (no warning —
-        most Polymarket markets are not short-duration).
-        """
-        raw_list = self._client.get_markets(limit=limit)
-        return self._fetch_and_normalize(
-            [r for r in raw_list if self._is_5m_candidate(r)]
-        )
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -152,50 +141,6 @@ class PolymarketFetchService:
             enable_order_book=enable_order_book,
             tokens=tokens,
         )
-
-    @staticmethod
-    def _is_5m_candidate(raw: dict) -> bool:
-        """Gate for markets considered suitable for 5-minute timeframe tracking.
-
-        A record must pass ALL of the following checks:
-
-        1. active=True, closed=False  — market is live and tradeable.
-        2. enableOrderBook=True       — CLOB order book present; AMM-only markets
-                                        lack intra-minute price resolution.
-        3. tokens list non-empty      — confirms binary YES/NO market structure.
-        4. Duration in [240, 360] s   — endDate − startDate within the 5m window
-                                        (±1 min tolerance).  Records with absent
-                                        or unparseable dates are rejected.
-
-        Deliberately NOT checked here (future steps):
-        - Coin/symbol identification (question pattern matching).
-        - volume24hr threshold — absent on some records.
-        - YES/NO → UP/DOWN semantic mapping.
-
-        Known limitations:
-        - Non-crypto CLOB markets whose duration happens to be ~5m will pass.
-        - Liquidity is not checked; a volume gate will reduce noise later.
-        """
-        if not bool(raw.get("active", False)):
-            return False
-        if bool(raw.get("closed", False)):
-            return False
-        if not bool(raw.get("enableOrderBook", False)):
-            return False
-        tokens = raw.get("tokens")
-        if not isinstance(tokens, list) or len(tokens) == 0:
-            return False
-
-        # Duration check — both dates must be present and parseable
-        start_dt = _parse_iso_dt(raw.get("startDate"))
-        end_dt = _parse_iso_dt(raw.get("endDate"))
-        if start_dt is None or end_dt is None:
-            return False
-        duration = (end_dt - start_dt).total_seconds()
-        if not (CANDIDATE_DURATION_MIN_SECONDS <= duration <= CANDIDATE_DURATION_MAX_SECONDS):
-            return False
-
-        return True
 
 
 # ---------------------------------------------------------------------------

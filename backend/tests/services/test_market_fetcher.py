@@ -6,8 +6,6 @@ import pytest
 
 from backend.app.integrations.polymarket.exceptions import PolymarketTimeoutError
 from backend.app.services.market_fetcher import (
-    CANDIDATE_DURATION_MAX_SECONDS,
-    CANDIDATE_DURATION_MIN_SECONDS,
     FetchedMarket,
     PolymarketFetchService,
 )
@@ -25,9 +23,10 @@ def _make_client(return_value: list[dict]) -> MagicMock:
 
 
 def _raw_market(**overrides) -> dict:
-    """Minimal valid Gamma API market record (passes _is_5m_candidate by default).
+    """Minimal valid Gamma API market record.
 
-    startDate and endDate are exactly 300 seconds apart (valid 5m window).
+    startDate and endDate are exactly 300 seconds apart.
+    All fields that DiscoveryService checks are present and valid.
     """
     base = {
         "id": "market-1",
@@ -43,18 +42,6 @@ def _raw_market(**overrides) -> dict:
     }
     base.update(overrides)
     return base
-
-
-def _market_with_duration(seconds: int, **overrides) -> dict:
-    """Helper: _raw_market with endDate set to startDate + `seconds`."""
-    from datetime import timedelta
-    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    end = start + timedelta(seconds=seconds)
-    return _raw_market(
-        startDate=start.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        endDate=end.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        **overrides,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +101,25 @@ class TestFetchMarkets:
         service = PolymarketFetchService(client)
         result = service.fetch_markets()
         assert [m.market_id for m in result] == ["m-0", "m-1", "m-2"]
+
+    def test_no_candidate_filtering_applied(self):
+        """fetch_markets must return inactive/AMM-only/short-duration markets unchanged.
+
+        Candidate selection is DiscoveryService's responsibility — the fetcher
+        must not silently drop any normalised records.
+        """
+        records = [
+            _raw_market(id="inactive", active=False),
+            _raw_market(id="amm-only", enableOrderBook=False),
+            _raw_market(id="no-tokens", tokens=[]),
+            _raw_market(id="long-duration", endDate="2024-01-02T00:00:00Z"),
+        ]
+        client = _make_client(records)
+        result = PolymarketFetchService(client).fetch_markets()
+        assert len(result) == 4
+        assert {m.market_id for m in result} == {
+            "inactive", "amm-only", "no-tokens", "long-duration"
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -238,167 +244,3 @@ class TestNormalization:
         service = PolymarketFetchService(_make_client([raw]))
         result = service.fetch_markets()
         assert result[0].tokens is None
-
-
-# ---------------------------------------------------------------------------
-# fetch_candidates (5m filter placeholder)
-# ---------------------------------------------------------------------------
-
-
-class TestFetchCandidates:
-    # ── passes ────────────────────────────────────────────────────────────────
-
-    def test_passes_fully_valid_candidate(self):
-        raw = _raw_market(active=True, closed=False, enableOrderBook=True,
-                          tokens=[{"outcome": "YES"}, {"outcome": "NO"}])
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert len(result) == 1
-
-    # ── active / closed ───────────────────────────────────────────────────────
-
-    def test_filters_out_inactive_market(self):
-        raw = _raw_market(active=False)
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    def test_filters_out_closed_market(self):
-        raw = _raw_market(closed=True)
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    # ── enableOrderBook ───────────────────────────────────────────────────────
-
-    def test_filters_out_amm_only_market(self):
-        """Markets without an order book lack intra-minute price resolution."""
-        raw = _raw_market(enableOrderBook=False)
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    def test_filters_out_missing_enable_order_book_field(self):
-        raw = _raw_market()
-        del raw["enableOrderBook"]
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    # ── tokens ────────────────────────────────────────────────────────────────
-
-    def test_filters_out_empty_tokens_list(self):
-        raw = _raw_market(tokens=[])
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    def test_filters_out_missing_tokens_field(self):
-        raw = _raw_market()
-        del raw["tokens"]
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    def test_filters_out_non_list_tokens(self):
-        raw = _raw_market(tokens=None)
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    # ── mixed batch ───────────────────────────────────────────────────────────
-
-    def test_passes_only_fully_qualifying_records(self):
-        records = [
-            _raw_market(id="ok",     active=True,  closed=False, enableOrderBook=True,  tokens=[{"outcome": "YES"}]),
-            _raw_market(id="no-ob",  active=True,  closed=False, enableOrderBook=False, tokens=[{"outcome": "YES"}]),
-            _raw_market(id="no-tok", active=True,  closed=False, enableOrderBook=True,  tokens=[]),
-            _raw_market(id="closed", active=True,  closed=True,  enableOrderBook=True,  tokens=[{"outcome": "YES"}]),
-            _raw_market(id="inact",  active=False, closed=False, enableOrderBook=True,  tokens=[{"outcome": "YES"}]),
-        ]
-        result = PolymarketFetchService(_make_client(records)).fetch_candidates()
-        assert len(result) == 1
-        assert result[0].market_id == "ok"
-
-    def test_returns_empty_when_all_filtered(self):
-        records = [_raw_market(active=False, closed=True)]
-        result = PolymarketFetchService(_make_client(records)).fetch_candidates()
-        assert result == []
-
-
-# ---------------------------------------------------------------------------
-# Duration filter (5m window: CANDIDATE_DURATION_MIN_SECONDS–MAX_SECONDS)
-# ---------------------------------------------------------------------------
-
-
-class TestDurationFilter:
-    """_is_5m_candidate duration gate — tests use _market_with_duration()."""
-
-    # ── passes ───────────────────────────────────────────────────────────────
-
-    def test_passes_exact_5m(self):
-        raw = _market_with_duration(300)
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert len(result) == 1
-
-    def test_passes_lower_boundary(self):
-        raw = _market_with_duration(CANDIDATE_DURATION_MIN_SECONDS)  # 240 s
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert len(result) == 1
-
-    def test_passes_upper_boundary(self):
-        raw = _market_with_duration(CANDIDATE_DURATION_MAX_SECONDS)  # 360 s
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert len(result) == 1
-
-    # ── rejects ──────────────────────────────────────────────────────────────
-
-    def test_filters_out_duration_below_lower_boundary(self):
-        raw = _market_with_duration(CANDIDATE_DURATION_MIN_SECONDS - 1)  # 239 s
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    def test_filters_out_duration_above_upper_boundary(self):
-        raw = _market_with_duration(CANDIDATE_DURATION_MAX_SECONDS + 1)  # 361 s
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    def test_filters_out_very_short_duration(self):
-        raw = _market_with_duration(60)  # 1 minute — too short
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    def test_filters_out_long_duration(self):
-        raw = _market_with_duration(3600)  # 1 hour
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    def test_filters_out_day_long_duration(self):
-        raw = _market_with_duration(86400)  # 24 hours
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    # ── missing / invalid dates ───────────────────────────────────────────────
-
-    def test_filters_out_missing_end_date(self):
-        raw = _raw_market()
-        del raw["endDate"]
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    def test_filters_out_missing_start_date(self):
-        raw = _raw_market()
-        del raw["startDate"]
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    def test_filters_out_unparseable_end_date(self):
-        raw = _raw_market(endDate="garbage")
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    def test_filters_out_unparseable_start_date(self):
-        raw = _raw_market(startDate="garbage")
-        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
-        assert result == []
-
-    # ── fetch_markets unaffected ──────────────────────────────────────────────
-
-    def test_fetch_markets_returns_record_regardless_of_duration(self):
-        """fetch_markets() must not apply the duration gate."""
-        raw = _market_with_duration(86400)  # 24 hours — would fail candidate filter
-        result = PolymarketFetchService(_make_client([raw])).fetch_markets()
-        assert len(result) == 1
-        assert result[0].end_date is not None  # end_date is parsed and stored
