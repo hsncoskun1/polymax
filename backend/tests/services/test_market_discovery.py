@@ -21,6 +21,7 @@ from backend.app.services.market_fetcher import (
 
 _BASE_START = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 _VALID_END = _BASE_START + timedelta(seconds=300)          # 5 m exactly — valid
+_VALID_TOKENS = [{"outcome": "YES"}, {"outcome": "NO"}]
 
 
 def _market(
@@ -32,6 +33,8 @@ def _market(
     closed: bool = False,
     source_timestamp: datetime | None = _BASE_START,
     end_date: datetime | None = _VALID_END,
+    enable_order_book: bool | None = True,
+    tokens: list | None = _VALID_TOKENS,
 ) -> FetchedMarket:
     return FetchedMarket(
         market_id=market_id,
@@ -42,6 +45,8 @@ def _market(
         closed=closed,
         source_timestamp=source_timestamp,
         end_date=end_date,
+        enable_order_book=enable_order_book,
+        tokens=tokens,
     )
 
 
@@ -117,9 +122,82 @@ class TestInactiveRejection:
         assert result.rejection_breakdown[RejectionReason.INACTIVE] == 1
         assert result.rejection_breakdown[RejectionReason.MISSING_DATES] == 0
 
+    def test_inactive_takes_priority_over_no_order_book(self):
+        market = _market(active=False, enable_order_book=False)
+        result = DiscoveryService().evaluate([market])
+        assert result.rejection_breakdown[RejectionReason.INACTIVE] == 1
+        assert result.rejection_breakdown[RejectionReason.NO_ORDER_BOOK] == 0
+
 
 # ---------------------------------------------------------------------------
-# Rule 2 — MISSING_DATES
+# Rule 2 — NO_ORDER_BOOK
+# ---------------------------------------------------------------------------
+
+
+class TestNoOrderBookRejection:
+    def test_enable_order_book_false_is_rejected(self):
+        result = DiscoveryService().evaluate([_market(enable_order_book=False)])
+        assert result.candidate_count == 0
+        assert result.rejection_breakdown[RejectionReason.NO_ORDER_BOOK] == 1
+
+    def test_enable_order_book_none_is_rejected(self):
+        """Absent field → conservative reject (None is not True)."""
+        result = DiscoveryService().evaluate([_market(enable_order_book=None)])
+        assert result.candidate_count == 0
+        assert result.rejection_breakdown[RejectionReason.NO_ORDER_BOOK] == 1
+
+    def test_enable_order_book_true_passes(self):
+        result = DiscoveryService().evaluate([_market(enable_order_book=True)])
+        assert result.candidate_count == 1
+
+    def test_no_order_book_takes_priority_over_empty_tokens(self):
+        """Rule 2 before Rule 3 — NO_ORDER_BOOK is the recorded reason."""
+        market = _market(enable_order_book=False, tokens=[])
+        result = DiscoveryService().evaluate([market])
+        assert result.rejection_breakdown[RejectionReason.NO_ORDER_BOOK] == 1
+        assert result.rejection_breakdown[RejectionReason.EMPTY_TOKENS] == 0
+
+    def test_no_order_book_takes_priority_over_missing_dates(self):
+        market = _market(enable_order_book=False, source_timestamp=None)
+        result = DiscoveryService().evaluate([market])
+        assert result.rejection_breakdown[RejectionReason.NO_ORDER_BOOK] == 1
+        assert result.rejection_breakdown[RejectionReason.MISSING_DATES] == 0
+
+
+# ---------------------------------------------------------------------------
+# Rule 3 — EMPTY_TOKENS
+# ---------------------------------------------------------------------------
+
+
+class TestEmptyTokensRejection:
+    def test_empty_tokens_list_is_rejected(self):
+        result = DiscoveryService().evaluate([_market(tokens=[])])
+        assert result.candidate_count == 0
+        assert result.rejection_breakdown[RejectionReason.EMPTY_TOKENS] == 1
+
+    def test_tokens_none_is_rejected(self):
+        """Absent field → conservative reject."""
+        result = DiscoveryService().evaluate([_market(tokens=None)])
+        assert result.candidate_count == 0
+        assert result.rejection_breakdown[RejectionReason.EMPTY_TOKENS] == 1
+
+    def test_single_token_passes(self):
+        result = DiscoveryService().evaluate([_market(tokens=[{"outcome": "YES"}])])
+        assert result.candidate_count == 1
+
+    def test_two_tokens_passes(self):
+        result = DiscoveryService().evaluate([_market(tokens=_VALID_TOKENS)])
+        assert result.candidate_count == 1
+
+    def test_empty_tokens_takes_priority_over_missing_dates(self):
+        market = _market(tokens=[], source_timestamp=None)
+        result = DiscoveryService().evaluate([market])
+        assert result.rejection_breakdown[RejectionReason.EMPTY_TOKENS] == 1
+        assert result.rejection_breakdown[RejectionReason.MISSING_DATES] == 0
+
+
+# ---------------------------------------------------------------------------
+# Rule 4 — MISSING_DATES
 # ---------------------------------------------------------------------------
 
 
@@ -148,7 +226,7 @@ class TestMissingDatesRejection:
 
 
 # ---------------------------------------------------------------------------
-# Rule 3 — DURATION_OUT_OF_RANGE
+# Rule 5 — DURATION_OUT_OF_RANGE
 # ---------------------------------------------------------------------------
 
 
@@ -218,20 +296,26 @@ class TestRejectionBreakdown:
         markets = [
             _market(market_id="ok"),
             _market(market_id="inactive", active=False),
+            _market(market_id="no-ob", enable_order_book=False),
+            _market(market_id="no-tok", tokens=[]),
             _market(market_id="no-dates", source_timestamp=None),
             _market(market_id="long", end_date=_BASE_START + timedelta(hours=1)),
         ]
         result = DiscoveryService().evaluate(markets)
-        assert result.fetched_count == 4
+        assert result.fetched_count == 6
         assert result.candidate_count == 1
-        assert result.rejected_count == 3
+        assert result.rejected_count == 5
         assert result.rejection_breakdown[RejectionReason.INACTIVE] == 1
+        assert result.rejection_breakdown[RejectionReason.NO_ORDER_BOOK] == 1
+        assert result.rejection_breakdown[RejectionReason.EMPTY_TOKENS] == 1
         assert result.rejection_breakdown[RejectionReason.MISSING_DATES] == 1
         assert result.rejection_breakdown[RejectionReason.DURATION_OUT_OF_RANGE] == 1
 
     def test_rejected_count_equals_sum_of_breakdown(self):
         markets = [
             _market(active=False),
+            _market(enable_order_book=False),
+            _market(tokens=None),
             _market(source_timestamp=None),
             _market_with_duration(9999),
         ]

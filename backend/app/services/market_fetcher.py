@@ -32,6 +32,17 @@ class FetchedMarket:
     Intermediate DTO between the raw Gamma API response and the POLYMAX
     domain Market model.  Fields like *side* and *timeframe* are not
     resolved here — that is a classification step that comes later.
+
+    enable_order_book:
+        True  — CLOB order book present; intra-minute price data available.
+        False — AMM-only; no order book.
+        None  — field absent in upstream response.
+
+    tokens:
+        List of outcome token dicts (e.g. [{"outcome": "YES"}, ...]).
+        None  — field absent or not a list in upstream response.
+        []    — field present but empty list.
+        Discovery uses this as a binary "non-empty" gate only.
     """
 
     market_id: str
@@ -42,6 +53,8 @@ class FetchedMarket:
     closed: bool
     source_timestamp: datetime | None   # parsed from startDate when present
     end_date: datetime | None           # parsed from endDate when present
+    enable_order_book: bool | None = None   # from enableOrderBook field
+    tokens: list | None = None              # from tokens field
 
 
 class PolymarketFetchService:
@@ -119,6 +132,14 @@ class PolymarketFetchService:
         end_date = _parse_iso_dt(raw.get("endDate"), label="endDate",
                                   market_id=market_id)
 
+        # enable_order_book — None when field absent, bool otherwise
+        _eob = raw.get("enableOrderBook")
+        enable_order_book: bool | None = None if _eob is None else bool(_eob)
+
+        # tokens — None when field absent or not a list; [] when present but empty
+        _tok = raw.get("tokens")
+        tokens: list | None = _tok if isinstance(_tok, list) else None
+
         return FetchedMarket(
             market_id=market_id.strip(),
             question=question,
@@ -128,6 +149,8 @@ class PolymarketFetchService:
             closed=closed,
             source_timestamp=source_timestamp,
             end_date=end_date,
+            enable_order_book=enable_order_book,
+            tokens=tokens,
         )
 
     @staticmethod

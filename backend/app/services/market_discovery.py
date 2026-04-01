@@ -8,9 +8,14 @@ layer: given a list of FetchedMarket records it returns a DiscoveryResult.
 
 Candidate selection rules (evaluated in order)
 ------------------------------------------------
-1. INACTIVE           — active=False or closed=True.
-2. MISSING_DATES      — source_timestamp or end_date is None.
-3. DURATION_OUT_OF_RANGE — (end_date − source_timestamp) outside [240, 360] s.
+1. INACTIVE             — active=False or closed=True.
+2. NO_ORDER_BOOK        — enable_order_book is not True (covers False and None).
+                          Markets without a CLOB order book lack intra-minute
+                          price resolution.
+3. EMPTY_TOKENS         — tokens is None or empty list.
+                          Confirms binary YES/NO market structure.
+4. MISSING_DATES        — source_timestamp or end_date is None.
+5. DURATION_OUT_OF_RANGE — (end_date − source_timestamp) outside [240, 360] s.
 
 Symbol extraction is NOT a rejection criterion.  extract_symbol() provides a
 best-effort ticker; when it returns None the mapper falls back to slug then
@@ -37,6 +42,8 @@ class RejectionReason(str, Enum):
     """Why a FetchedMarket was excluded from the candidate set."""
 
     INACTIVE = "inactive"
+    NO_ORDER_BOOK = "no_order_book"
+    EMPTY_TOKENS = "empty_tokens"
     MISSING_DATES = "missing_dates"
     DURATION_OUT_OF_RANGE = "duration_out_of_range"
 
@@ -114,11 +121,19 @@ class DiscoveryService:
         if not market.active or market.closed:
             return RejectionReason.INACTIVE
 
-        # Rule 2 — both date fields must be present
+        # Rule 2 — CLOB order book must be present
+        if market.enable_order_book is not True:
+            return RejectionReason.NO_ORDER_BOOK
+
+        # Rule 3 — must have at least one outcome token (binary market structure)
+        if not market.tokens:
+            return RejectionReason.EMPTY_TOKENS
+
+        # Rule 4 — both date fields must be present
         if market.source_timestamp is None or market.end_date is None:
             return RejectionReason.MISSING_DATES
 
-        # Rule 3 — duration must fall within the 5m window
+        # Rule 5 — duration must fall within the 5m window
         duration = (market.end_date - market.source_timestamp).total_seconds()
         if not (CANDIDATE_DURATION_MIN_SECONDS <= duration <= CANDIDATE_DURATION_MAX_SECONDS):
             return RejectionReason.DURATION_OUT_OF_RANGE
