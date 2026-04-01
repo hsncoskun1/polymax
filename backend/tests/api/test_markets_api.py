@@ -47,6 +47,23 @@ async def test_create_market(client):
     assert data["symbol"] == "BTC"
     assert data["status"] == "active"
     assert data["timeframe"] == "5m"
+    assert data["end_date"] is None  # not supplied → None
+
+
+@pytest.mark.asyncio
+async def test_create_market_with_end_date(client):
+    payload = {**VALID_MARKET, "id": "mkt-btc-end", "end_date": "2024-01-01T00:05:00Z"}
+    resp = await client.post("/api/v1/markets", json=payload)
+    assert resp.status_code == 201
+    assert resp.json()["end_date"] == "2024-01-01T00:05:00Z"
+
+
+@pytest.mark.asyncio
+async def test_end_date_present_in_list_response(client):
+    await client.post("/api/v1/markets", json=VALID_MARKET)
+    resp = await client.get("/api/v1/markets")
+    assert resp.status_code == 200
+    assert "end_date" in resp.json()[0]
 
 
 @pytest.mark.asyncio

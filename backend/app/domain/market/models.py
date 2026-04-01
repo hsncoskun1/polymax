@@ -18,6 +18,7 @@ class Market(BaseModel):
     side: Side
     status: MarketStatus = MarketStatus.ACTIVE
     source_timestamp: datetime | None = None   # freshness from upstream
+    end_date: datetime | None = None           # when the market resolves (from Polymarket endDate)
     created_at: datetime
     updated_at: datetime
 
@@ -55,6 +56,7 @@ def create_market(
     side: Side,
     timeframe: Timeframe = Timeframe.M5,
     source_timestamp: datetime | None = None,
+    end_date: datetime | None = None,
 ) -> Market:
     """Factory that sets created_at / updated_at automatically."""
     now = _utcnow()
@@ -65,6 +67,7 @@ def create_market(
         timeframe=timeframe,
         side=side,
         source_timestamp=source_timestamp,
+        end_date=end_date,
         created_at=now,
         updated_at=now,
     )
