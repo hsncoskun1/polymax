@@ -31,6 +31,8 @@ export interface SyncResult {
   skipped_mapping_count: number;
   skipped_duplicate_count: number;
   registry_total_count: number;
+  rejected_count: number;
+  rejection_breakdown: Record<string, number>;
 }
 
 export async function triggerSync(): Promise<SyncResult> {

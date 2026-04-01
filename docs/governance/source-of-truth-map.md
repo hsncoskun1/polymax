@@ -76,6 +76,26 @@ kept in sync manually. Backend is authoritative; frontend is a mirror.
 
 ---
 
+## Network and connectivity
+
+| Information | Authoritative source | Drift risk |
+|-------------|---------------------|------------|
+| Backend host / port (runtime) | `config/default.toml` → read by launcher and `backend/app/core/config.py` | LOW — values match hardcoded fallbacks today |
+| Frontend → backend URL (runtime) | `frontend/src/lib/config.ts` fallback: `http://127.0.0.1:8000` | LOW — not linked to `config/default.toml`; frontend cannot read TOML at runtime; by design |
+| CORS allowed origins | `backend/app/main.py` — **hardcoded**: `["http://127.0.0.1:5173", "http://localhost:5173"]` | **MEDIUM** — not read from `config/default.toml`; if frontend port changes in config, CORS breaks silently |
+
+**Known gap:** CORS allowed origins are not config-driven. `config/default.toml` has `[frontend] host` and `port`, but `backend/app/main.py` does not read them. The hardcoded values happen to match the config defaults. This is a latent drift risk if the frontend port is changed in config.
+
+## Gamma API integration
+
+| Information | Authoritative source |
+|-------------|---------------------|
+| Gamma API base URL | `backend/app/integrations/polymarket/config.py` — `GAMMA_BASE_URL` |
+| HTTP timeout | `backend/app/integrations/polymarket/config.py` — `DEFAULT_TIMEOUT` |
+| Market fetch limit | `backend/app/integrations/polymarket/config.py` — `DEFAULT_MARKET_LIMIT` |
+
+These constants are integration-layer config, not exposed in `config/default.toml`. This is intentional: they are not intended to be user-configurable at this stage.
+
 ## Testing
 
 | Information | Authoritative source |
