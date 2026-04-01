@@ -1,7 +1,11 @@
-"""Market sync service — single-shot fetch → map → registry write.
+"""Market sync service — single-shot fetch → discovery → map → registry write.
 
 Orchestrates the path from raw Polymarket data to persisted domain Markets.
 Does NOT run on a schedule.  The caller decides when to invoke run().
+
+Candidate selection is delegated entirely to DiscoveryService — the single
+authoritative source of selection rules.  MarketSyncService itself applies
+no additional filtering.
 """
 from __future__ import annotations
 
@@ -12,6 +16,7 @@ from ..domain.market.exceptions import DuplicateMarketError
 from ..domain.market.models import Market, create_market
 from ..domain.market.registry import MarketRegistry
 from ..domain.market.types import Side, Timeframe
+from .market_discovery import DiscoveryService
 from .market_fetcher import FetchedMarket, PolymarketFetchService
 from .symbol_extractor import extract_symbol
 from ..integrations.polymarket.config import DEFAULT_MARKET_LIMIT
@@ -26,13 +31,20 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SyncResult:
-    """Summary of a single sync run."""
+    """Summary of a single sync run.
 
-    fetched: int            # candidates returned by the fetcher
-    mapped: int             # domain Markets successfully produced
-    written: int            # Markets newly written to the registry
-    skipped_mapping: int    # records that could not be mapped to a Market
-    skipped_duplicate: int  # records that already existed in the registry
+    fetched            — discovery candidates that entered the map→write stage.
+    mapped             — domain Markets successfully produced.
+    written            — Markets newly written to the registry.
+    skipped_mapping    — records that could not be mapped to a Market.
+    skipped_duplicate  — records that already existed in the registry.
+    """
+
+    fetched: int
+    mapped: int
+    written: int
+    skipped_mapping: int
+    skipped_duplicate: int
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +112,11 @@ class MarketMapper:
 
 
 class MarketSyncService:
-    """Single-shot sync: fetch candidates → map → write to registry.
+    """Single-shot sync: fetch → discovery evaluate → map → write to registry.
+
+    DiscoveryService is the single authoritative candidate selector.
+    MarketSyncService fetches all normalised markets, delegates candidate
+    selection to DiscoveryService, then maps and writes the survivors.
 
     Duplicate entries are silently skipped (idempotent).  Records that fail
     mapping are counted and logged but do not abort the run.
@@ -111,18 +127,30 @@ class MarketSyncService:
         fetcher: PolymarketFetchService,
         registry: MarketRegistry,
         mapper: MarketMapper | None = None,
+        discovery: DiscoveryService | None = None,
     ) -> None:
         self._fetcher = fetcher
         self._registry = registry
         self._mapper = mapper or MarketMapper()
+        self._discovery = discovery or DiscoveryService()
 
     def run(self, limit: int = DEFAULT_MARKET_LIMIT) -> SyncResult:
-        """Execute one full fetch → map → write cycle.
+        """Execute one full fetch → discovery → map → write cycle.
+
+        1. Fetches all normalised markets from Polymarket.
+        2. Passes them to DiscoveryService.evaluate() — single source of
+           candidate selection rules.
+        3. Maps each candidate to UP + DOWN domain Markets.
+        4. Writes new Markets to the registry; duplicates are counted and
+           skipped.
 
         Client-level errors (PolymarketError subclasses) propagate to the
         caller — the registry is left unchanged in that case.
         """
-        candidates = self._fetcher.fetch_candidates(limit=limit)
+        all_markets = self._fetcher.fetch_markets(limit=limit)
+        discovery_result = self._discovery.evaluate(all_markets)
+        candidates = discovery_result.candidates
+
         fetched = len(candidates)
         mapped = 0
         written = 0
