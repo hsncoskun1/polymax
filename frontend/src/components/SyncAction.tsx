@@ -78,6 +78,14 @@ export default function SyncAction({ onSuccess }: SyncActionProps) {
   );
 }
 
+const BREAKDOWN_LABELS: Record<string, string> = {
+  inactive: "Inactive / closed",
+  no_order_book: "No order book",
+  empty_tokens: "Empty tokens",
+  missing_dates: "Missing dates",
+  duration_out_of_range: "Duration out of range",
+};
+
 function SyncSummary({ result }: { result: SyncResult }) {
   const rows: [string, number][] = [
     ["Fetched", result.fetched_count],
@@ -86,25 +94,53 @@ function SyncSummary({ result }: { result: SyncResult }) {
     ["Skipped (mapping)", result.skipped_mapping_count],
     ["Skipped (duplicate)", result.skipped_duplicate_count],
     ["Registry total", result.registry_total_count],
+    ["Rejected", result.rejected_count],
   ];
+
+  const breakdownEntries = Object.entries(result.rejection_breakdown);
 
   return (
     <div
       role="region"
       aria-label="Sync result"
-      className="rounded-md border border-[var(--color-border)] divide-y divide-[var(--color-border)]"
+      className="space-y-3"
     >
-      {rows.map(([label, value]) => (
-        <div
-          key={label}
-          className="flex items-center justify-between px-4 py-2 text-sm"
-        >
-          <span className="text-[var(--color-text-muted)]">{label}</span>
-          <span className="font-mono font-medium text-[var(--color-text)]">
-            {value}
-          </span>
+      <div className="rounded-md border border-[var(--color-border)] divide-y divide-[var(--color-border)]">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="flex items-center justify-between px-4 py-2 text-sm"
+          >
+            <span className="text-[var(--color-text-muted)]">{label}</span>
+            <span className="font-mono font-medium text-[var(--color-text)]">
+              {value}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {breakdownEntries.length > 0 && (
+        <div>
+          <p className="text-xs text-[var(--color-text-muted)] px-1 mb-1">
+            Rejection breakdown
+          </p>
+          <div className="rounded-md border border-[var(--color-border)] divide-y divide-[var(--color-border)]">
+            {breakdownEntries.map(([key, count]) => (
+              <div
+                key={key}
+                className="flex items-center justify-between px-4 py-2 text-sm"
+              >
+                <span className="text-[var(--color-text-muted)]">
+                  {BREAKDOWN_LABELS[key] ?? key}
+                </span>
+                <span className="font-mono font-medium text-[var(--color-text)]">
+                  {count}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }

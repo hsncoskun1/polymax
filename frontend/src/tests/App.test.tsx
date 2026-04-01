@@ -91,6 +91,8 @@ const MOCK_SYNC_RESULT = {
   skipped_mapping_count: 0,
   skipped_duplicate_count: 0,
   registry_total_count: 4,
+  rejected_count: 0,
+  rejection_breakdown: {},
 };
 
 describe("SyncAction", () => {
