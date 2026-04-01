@@ -32,6 +32,16 @@ class FetchedMarket:
     domain Market model.  Fields like *side* and *timeframe* are not
     resolved here — that is a classification step that comes later.
 
+    question:
+        Always a str; never None.  Leading/trailing whitespace stripped.
+        Whitespace-only upstream value normalises to "".
+
+    slug:
+        Canonical stripped value, or None.
+        None when: absent, falsy, or whitespace-only after strip.
+        Non-blank non-empty string after strip otherwise.
+        Safe for use as symbol fallback (no whitespace-only slug leaks downstream).
+
     enable_order_book:
         True  — CLOB order book present; intra-minute price data available.
         False — AMM-only; no order book.
@@ -105,10 +115,10 @@ class PolymarketFetchService:
         id             absent/None/non-str/blank     → skip record (return None)
                        any string after strip        → market_id (stripped)
         question       absent/None/falsy             → "" (empty string; never None)
-                       non-empty string              → as-is
+                       any string                    → stripped; whitespace-only → ""
         slug           absent/None/falsy/""          → None
-                       non-empty string              → as-is (incl. whitespace-only
-                                                       strings — callers must tolerate)
+                       whitespace-only string        → None (stripped to empty → None)
+                       non-empty non-blank string    → stripped value
         active         absent                        → False (default)
                        any value                     → bool() coercion
         closed         absent                        → False (default)
@@ -128,7 +138,7 @@ class PolymarketFetchService:
 
         Downstream effects:
           - question="" is safe: symbol extraction falls back to slug then market_id.
-          - slug whitespace-only: callers see truthy slug; mapper may raise ValueError.
+          - slug=None: mapper falls back to market_id for symbol; safe.
           - enable_order_book=None / tokens=None: discovery rejects via NO_ORDER_BOOK /
             EMPTY_TOKENS; these records never become candidates.
           - source_timestamp=None / end_date=None: discovery rejects via MISSING_DATES.
@@ -138,8 +148,9 @@ class PolymarketFetchService:
             logger.warning("Skipping market with missing/invalid id: %r", raw)
             return None
 
-        question: str = raw.get("question") or ""
-        slug: str | None = raw.get("slug") or None
+        question: str = (raw.get("question") or "").strip()
+        _slug = raw.get("slug")
+        slug: str | None = (_slug.strip() or None) if isinstance(_slug, str) else None
         active: bool = bool(raw.get("active", False))
         closed: bool = bool(raw.get("closed", False))
 

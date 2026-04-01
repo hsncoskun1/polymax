@@ -100,11 +100,11 @@ class TestEmptyAndWhitespaceNormalization:
         assert m is not None
         assert m.question == ""
 
-    def test_question_whitespace_only_is_preserved_as_is(self):
-        """question: whitespace-only string is preserved (not trimmed to '')."""
+    def test_question_whitespace_only_normalizes_to_empty_string(self):
+        """question: whitespace-only string is stripped → '' (v0.5.17 canonical policy)."""
         m = _normalize_one(_minimal_valid_raw(question="   "))
         assert m is not None
-        assert m.question == "   "
+        assert m.question == ""
 
     def test_slug_none_normalizes_to_none(self):
         """slug: None in raw → None in FetchedMarket."""
@@ -360,15 +360,20 @@ class TestNormalizationPolicyContractAlignment:
             assert m is not None
             assert m.question == "", f"Expected '' for question={falsy_q!r}"
 
-        # --- slug policy: None/missing/'' → None ---
-        for falsy_s in [None, ""]:
+        # --- slug policy: None/missing/''/whitespace-only → None ---
+        for falsy_s in [None, "", "   "]:
             m = _normalize_one(_minimal_valid_raw(slug=falsy_s))
             assert m is not None
             assert m.slug is None, f"Expected None for slug={falsy_s!r}"
-        # non-empty slug preserved
+        # non-empty slug stripped and preserved
         m = _normalize_one(_minimal_valid_raw(slug="btc-slug"))
         assert m is not None
         assert m.slug == "btc-slug"
+
+        # --- question whitespace-only → '' (v0.5.17 canonical policy) ---
+        m = _normalize_one(_minimal_valid_raw(question="   "))
+        assert m is not None
+        assert m.question == ""
 
         # --- active/closed: absent → False ---
         raw = _minimal_valid_raw()

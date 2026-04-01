@@ -50,6 +50,7 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.5.14 Mapping failure semantics lock (SyncResult three-pipeline-gate section: Gate 1 discovery rejection / Gate 2 mapping failure / Gate 3 registry duplicate; pipeline invariant documented; 12 new mapping failure semantics tests A–E; 331 total tests; 180 regression scenarios) — complete
 - v0.5.15 Pipeline edge-state contract lock (SyncResult edge-state reference table; Status A — no production changes; 5 canonical edge states locked cross-layer: empty/all-rejected/all-map-failed/all-duplicate/all-new-valid; 16 new edge-state contract tests A–F; 347 total tests; 196 regression scenarios) — complete
 - v0.5.16 Fetcher input normalization contract lock (_normalize() field policy table; Status A — normalization already consistent; boundary cases documented: question None→'', slug falsy→None, enableOrderBook absent→None, tokens non-list→None; 34 new normalization contract tests A–F; 381 total tests; 230 regression scenarios) — complete
+- v0.5.17 Canonical text field normalization lock (Status B — whitespace-only slug caused silent downstream mapping failure; production fix: slug strip+None-ify whitespace-only, question strip whitespace; FetchedMarket docstring updated; 20 new canonical normalization tests A–F; 401 total tests; 250 regression scenarios) — complete
 
 ## Quick Start
 
