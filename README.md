@@ -55,9 +55,9 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.5.19 Upstream drift triage workflow lock (Status A — process contract was missing; tools/refresh_gamma_snapshot.py manual CLI helper with REQUIRED_FIELDS/OPTIONAL_FIELDS validation; docs/testing/gamma_contract_workflow.md full triage workflow doc; 31 new drift triage tests A–E; 454 total tests; 304 regression scenarios) — complete
 - v0.5.20 Drift response ownership lock (Status A — operational ownership undefined; docs/testing/gamma_drift_response_roles.md ownership doc with roles/decision-matrix/live-test-action-table/fixture-refresh-checklist; 29 new ownership tests A–E; 483 total tests; 333 regression scenarios) — complete
 - v0.5.21 Snapshot refresh trigger policy lock (Status B — on-demand + optional scheduled; docs/testing/gamma_snapshot_refresh_policy.md with required triggers/negative triggers/optional cadence/decision flowchart; 27 new trigger policy tests A–E; 510 total tests; 360 regression scenarios) — complete
-- v0.5.24 Repo cleanup and consistency pass (Windows path artefacts removed; empty untracked dirs removed; frontend Market interface + SyncResult interface aligned with backend; registry_total_count surfaced in Sync UI; launcher reads host/port from config/default.toml) — complete
-- v0.5.23 Regression tier contract lock (Status B — tier mantığı dağınık, executable contract eksik; docs/testing/regression_tiers.md with Smoke/Standard/Full definitions, pytest commands, change-type decision table; 41 new tier contract tests A–F; 594 total tests; 444 regression scenarios) — complete
 - v0.5.22 Contract atlas lock (Status A — single-page canonical index was missing; docs/testing/discovery_sync_contract_atlas.md with all 13 contract surfaces, LOCKED/DEFERRED status, open risks, cross-references; 43 new atlas contract tests A–E; 553 total tests; 403 regression scenarios) — complete
+- v0.5.23 Regression tier contract lock (Status B — tier mantığı dağınık, executable contract eksik; docs/testing/regression_tiers.md with Smoke/Standard/Full definitions, pytest commands, change-type decision table; 41 new tier contract tests A–F; 594 total tests; 444 regression scenarios) — complete
+- v0.5.24 Repo cleanup and consistency pass (Windows path artefacts removed; empty untracked dirs removed; frontend Market interface + SyncResult interface aligned with backend; registry_total_count surfaced in Sync UI; launcher reads host/port from config/default.toml) — complete
 
 ## Quick Start
 
@@ -91,27 +91,59 @@ POLYMAX/
 ├── launcher/main.py            # Starts backend + frontend, opens browser
 ├── backend/
 │   ├── app/
-│   │   ├── api/                # HTTP endpoints (health, markets + sync)
+│   │   ├── api/                # HTTP endpoints (health, markets + sync + discover)
 │   │   ├── core/               # Config, logging
 │   │   ├── domain/
 │   │   │   └── market/         # Market entity, registry, exceptions, types
 │   │   ├── integrations/
 │   │   │   └── polymarket/     # HTTP client, config, exceptions
-│   │   └── services/           # market_fetcher, market_sync
+│   │   └── services/           # market_fetcher, market_discovery, market_sync
 │   └── tests/
-│       ├── api/
-│       ├── domain/
-│       ├── integrations/
-│       └── services/
+│       ├── api/                # API endpoint tests
+│       ├── domain/             # Domain model tests
+│       ├── integration/        # Contract lock integration tests (largest suite)
+│       ├── integrations/       # Polymarket HTTP client tests
+│       ├── services/           # Service unit tests
+│       └── fixtures/           # gamma_snapshot.json (committed Gamma API fixture)
+├── docs/
+│   └── testing/                # Testing contracts and workflows (see Testing Docs below)
 ├── frontend/
 │   ├── src/
-│   │   ├── components/         # AppShell, HealthBadge, MarketList, SyncAction
+│   │   ├── components/         # AppShell, HealthBadge, MarketList, SyncAction, DiscoverAction
 │   │   ├── pages/              # UserPanel, AdminPanel
 │   │   ├── lib/                # config.ts, api.ts
 │   │   └── tests/
 │   └── package.json
-├── config/default.toml         # Central configuration
+├── config/default.toml         # Central configuration (host, port, logging)
+├── tools/
+│   └── refresh_gamma_snapshot.py  # Manual CLI helper for Gamma API shape inspection
 └── test-results/               # Test reports per milestone
+```
+
+## Testing Docs
+
+All testing contracts and workflows live in `docs/testing/`:
+
+| Document | Purpose |
+|----------|---------|
+| [`regression_tiers.md`](docs/testing/regression_tiers.md) | **Start here** — Smoke / Standard / Full tier definitions with executable pytest commands |
+| [`discovery_sync_contract_atlas.md`](docs/testing/discovery_sync_contract_atlas.md) | Single-page index of all 13 locked/deferred contracts |
+| [`discovery_regression_matrix.md`](docs/testing/discovery_regression_matrix.md) | Full scenario matrix (400+ test scenarios mapped to test files) |
+| [`gamma_contract_workflow.md`](docs/testing/gamma_contract_workflow.md) | How to triage and refresh the Gamma API fixture |
+| [`gamma_drift_response_roles.md`](docs/testing/gamma_drift_response_roles.md) | Who owns drift response decisions |
+| [`gamma_snapshot_refresh_policy.md`](docs/testing/gamma_snapshot_refresh_policy.md) | When to refresh the fixture (required vs optional triggers) |
+
+### Running the test tiers
+
+```bash
+# Smoke — fast sanity check (~185 tests, <1s)
+python -m pytest backend/tests/test_health.py backend/tests/domain/ backend/tests/services/ backend/tests/api/ -q
+
+# Standard — full automated regression (~594 tests)
+python -m pytest backend/tests/ -q
+
+# Full — standard + live Polymarket API shape check
+python -m pytest backend/tests/ -q && python -m pytest backend/tests/ -m live -v
 ```
 
 ## Tech Stack
