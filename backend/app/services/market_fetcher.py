@@ -15,6 +15,15 @@ from ..integrations.polymarket.config import DEFAULT_MARKET_LIMIT
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# 5m duration window (seconds) — tolerant ±1 minute around the 5m target.
+# Markets whose endDate − startDate falls outside this range are not
+# considered 5m candidates.  These are NOT final discovery thresholds;
+# they will be tightened once real 5m market data is observed in production.
+# ---------------------------------------------------------------------------
+CANDIDATE_DURATION_MIN_SECONDS: int = 240   # 4 minutes
+CANDIDATE_DURATION_MAX_SECONDS: int = 360   # 6 minutes
+
 
 @dataclass(frozen=True)
 class FetchedMarket:
@@ -32,6 +41,7 @@ class FetchedMarket:
     active: bool
     closed: bool
     source_timestamp: datetime | None   # parsed from startDate when present
+    end_date: datetime | None           # parsed from endDate when present
 
 
 class PolymarketFetchService:
@@ -53,14 +63,16 @@ class PolymarketFetchService:
         """Return all normalised markets from Polymarket.
 
         Records with a missing or empty *id* are skipped with a warning.
+        No candidate filtering is applied.
         """
         return self._fetch_and_normalize(self._client.get_markets(limit=limit))
 
     def fetch_candidates(self, limit: int = DEFAULT_MARKET_LIMIT) -> list[FetchedMarket]:
-        """Return normalised markets pre-filtered to 5m candidates.
+        """Return normalised markets filtered to 5m candidates.
 
-        Uses _is_5m_candidate as the gate — currently active and non-closed.
-        The filter criterion will be refined in future classification steps.
+        A record must pass _is_5m_candidate() before normalisation.
+        Records that fail the gate are discarded silently (no warning —
+        most Polymarket markets are not short-duration).
         """
         raw_list = self._client.get_markets(limit=limit)
         return self._fetch_and_normalize(
@@ -102,20 +114,10 @@ class PolymarketFetchService:
             if isinstance(first, dict):
                 event_id = first.get("id") or None
 
-        # source_timestamp — parse ISO-8601 startDate if present
-        source_timestamp: datetime | None = None
-        start_date = raw.get("startDate")
-        if isinstance(start_date, str) and start_date:
-            try:
-                source_timestamp = datetime.fromisoformat(
-                    start_date.replace("Z", "+00:00")
-                )
-            except ValueError:
-                logger.warning(
-                    "Could not parse startDate %r for market %s",
-                    start_date,
-                    market_id,
-                )
+        source_timestamp = _parse_iso_dt(raw.get("startDate"), label="startDate",
+                                          market_id=market_id)
+        end_date = _parse_iso_dt(raw.get("endDate"), label="endDate",
+                                  market_id=market_id)
 
         return FetchedMarket(
             market_id=market_id.strip(),
@@ -125,34 +127,31 @@ class PolymarketFetchService:
             active=active,
             closed=closed,
             source_timestamp=source_timestamp,
+            end_date=end_date,
         )
 
     @staticmethod
     def _is_5m_candidate(raw: dict) -> bool:
         """Gate for markets considered suitable for 5-minute timeframe tracking.
 
-        Current checks (conservative, based on reliable Gamma API fields):
+        A record must pass ALL of the following checks:
 
         1. active=True, closed=False  — market is live and tradeable.
-        2. enableOrderBook=True       — CLOB order book present; indicates live
-                                        bid/ask flow appropriate for 5m tracking.
-                                        AMM-only markets (enableOrderBook=False)
+        2. enableOrderBook=True       — CLOB order book present; AMM-only markets
                                         lack intra-minute price resolution.
-        3. tokens list non-empty      — confirms binary YES/NO market structure;
-                                        markets with no tokens are malformed or
-                                        not yet initialised.
+        3. tokens list non-empty      — confirms binary YES/NO market structure.
+        4. Duration in [240, 360] s   — endDate − startDate within the 5m window
+                                        (±1 min tolerance).  Records with absent
+                                        or unparseable dates are rejected.
 
-        Deliberately NOT checked here:
-        - Coin/symbol identification (question pattern matching) — discovery
-          logic; out of scope for this step.
-        - volume24hr threshold — field absent on some records; skipped for now.
-        - Market duration / endDate proximity — out of scope for this step.
+        Deliberately NOT checked here (future steps):
+        - Coin/symbol identification (question pattern matching).
+        - volume24hr threshold — absent on some records.
+        - YES/NO → UP/DOWN semantic mapping.
 
-        Known limitations / false-positive risk:
-        - CLOB markets with negligible liquidity will pass through; a volume
-          threshold would reduce noise but requires reliable volume data.
-        - Non-crypto CLOB markets (e.g. politics, sports) pass because asset
-          classification is not yet implemented.
+        Known limitations:
+        - Non-crypto CLOB markets whose duration happens to be ~5m will pass.
+        - Liquidity is not checked; a volume gate will reduce noise later.
         """
         if not bool(raw.get("active", False)):
             return False
@@ -163,4 +162,42 @@ class PolymarketFetchService:
         tokens = raw.get("tokens")
         if not isinstance(tokens, list) or len(tokens) == 0:
             return False
+
+        # Duration check — both dates must be present and parseable
+        start_dt = _parse_iso_dt(raw.get("startDate"))
+        end_dt = _parse_iso_dt(raw.get("endDate"))
+        if start_dt is None or end_dt is None:
+            return False
+        duration = (end_dt - start_dt).total_seconds()
+        if not (CANDIDATE_DURATION_MIN_SECONDS <= duration <= CANDIDATE_DURATION_MAX_SECONDS):
+            return False
+
         return True
+
+
+# ---------------------------------------------------------------------------
+# Module-level helper
+# ---------------------------------------------------------------------------
+
+def _parse_iso_dt(
+    value: object,
+    *,
+    label: str = "date",
+    market_id: str = "<unknown>",
+) -> datetime | None:
+    """Parse an ISO-8601 date string to a timezone-aware datetime.
+
+    Returns None (and logs a warning when label/market_id are provided) if
+    the value is absent, not a string, or cannot be parsed.
+
+    The 'Z' suffix is normalised to '+00:00' for Python < 3.11 compatibility.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        logger.warning(
+            "Could not parse %s %r for market %s", label, value, market_id
+        )
+        return None
