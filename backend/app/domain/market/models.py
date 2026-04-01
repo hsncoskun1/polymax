@@ -17,7 +17,7 @@ class Market(BaseModel):
     timeframe: Timeframe
     side: Side
     status: MarketStatus = MarketStatus.ACTIVE
-    source_timestamp: datetime | None = None   # freshness from upstream
+    source_timestamp: datetime | None = None   # event start time (from Polymarket startDate)
     end_date: datetime | None = None           # when the market resolves (from Polymarket endDate)
     created_at: datetime
     updated_at: datetime

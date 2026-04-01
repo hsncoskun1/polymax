@@ -16,6 +16,9 @@ Candidate selection rules (evaluated in order)
                           Confirms binary YES/NO market structure.
 4. MISSING_DATES        — source_timestamp or end_date is None.
 5. DURATION_OUT_OF_RANGE — (end_date − source_timestamp) outside [240, 360] s.
+                          source_timestamp is the event start time (Polymarket startDate);
+                          end_date is the event close time (Polymarket endDate).
+                          This is the structural event span, not a remaining-time check.
 
 Symbol extraction is NOT a rejection criterion.  extract_symbol() provides a
 best-effort ticker; when it returns None the mapper falls back to slug then

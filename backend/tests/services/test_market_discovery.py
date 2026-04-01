@@ -271,6 +271,27 @@ class TestDurationRejection:
 
     # -- Total duration vs remaining time contract ----------------------------
 
+    def test_duration_uses_canonical_structural_time_fields(self):
+        """Duration rule uses source_timestamp (event start) and end_date (event end).
+
+        source_timestamp = Polymarket startDate — the structural beginning of the event.
+        end_date         = Polymarket endDate   — the structural close of the event.
+
+        This test names these semantics explicitly so that any future rename or
+        field reassignment will require updating this test — making the intent visible.
+        """
+        event_start = datetime(2024, 3, 1, 10, 0, 0, tzinfo=timezone.utc)
+        event_end   = datetime(2024, 3, 1, 10, 5, 0, tzinfo=timezone.utc)   # 300 s later
+        market = _market(source_timestamp=event_start, end_date=event_end)
+
+        result = DiscoveryService().evaluate([market])
+
+        # 300 s = valid 5m window → candidate
+        assert result.candidate_count == 1
+        # The candidate's source_timestamp and end_date are exactly what we provided
+        assert result.candidates[0].source_timestamp == event_start
+        assert result.candidates[0].end_date == event_end
+
     def test_duration_filter_uses_total_market_duration_not_remaining_time(self):
         """Duration rule is end_date − source_timestamp (total), not end_date − now (remaining).
 
