@@ -91,11 +91,14 @@ kept in sync manually. Backend is authoritative; frontend is a mirror.
 
 | Information | Authoritative source | Drift risk |
 |-------------|---------------------|------------|
-| Backend host / port (runtime) | `config/default.toml` → read by launcher and `backend/app/core/config.py` | LOW — values match hardcoded fallbacks today |
-| Frontend → backend URL (runtime) | `frontend/src/lib/config.ts` fallback: `http://127.0.0.1:8000` | LOW — not linked to `config/default.toml`; frontend cannot read TOML at runtime; by design |
-| CORS allowed origins | `backend/app/main.py` — **hardcoded**: `["http://127.0.0.1:5173", "http://localhost:5173"]` | **MEDIUM** — not read from `config/default.toml`; if frontend port changes in config, CORS breaks silently |
+| Backend host / port (runtime) | `config/default.toml` → `[backend]` — read by launcher and `backend/app/core/config.py` | LOW |
+| Frontend host / port (Vite dev server) | `frontend/vite.config.ts` — hardcoded `host: "127.0.0.1", port: 5173` | LOW NON-BLOCKER — Vite cannot read TOML at runtime; values intentionally match config defaults; documented known drift |
+| Frontend → backend URL (runtime) | `frontend/src/lib/config.ts` — `VITE_BACKEND_URL` env var, fallback `http://127.0.0.1:8000` | LOW — fallback matches config; env var override available for non-default deployments; by design |
+| CORS allowed origins | `config/default.toml` → `[frontend] host + port` — derived in `backend/app/main.py` `_build_cors_origins()` | LOW — config-driven since v0.5.29; `localhost` alias kept explicitly (browser security context difference) |
 
-**Known gap:** CORS allowed origins are not config-driven. `config/default.toml` has `[frontend] host` and `port`, but `backend/app/main.py` does not read them. The hardcoded values happen to match the config defaults. This is a latent drift risk if the frontend port is changed in config.
+**localhost alias rationale:** CORS always includes both `http://{frontend_host}:{port}` (from config) and `http://localhost:{port}`. Browsers treat `127.0.0.1` and `localhost` as distinct origins in some security contexts (e.g. cookies, service workers). Keeping the alias prevents silent auth failures if a user opens `http://localhost:5173` instead of `http://127.0.0.1:5173`.
+
+**Vite config known drift:** `frontend/vite.config.ts` hardcodes `port: 5173` and `host: "127.0.0.1"`. Vite is a Node.js tool that cannot read `config/default.toml` without a new build dependency. The hardcoded values match config defaults. If the frontend port is changed in config, `vite.config.ts` must be updated manually — this is a documented LOW NON-BLOCKER.
 
 ## Gamma API integration
 
