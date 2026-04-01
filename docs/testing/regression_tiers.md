@@ -19,8 +19,8 @@ For the canonical contract index, see:
 | Tier | Scope | Tests | Approx time | Required? |
 |------|-------|-------|-------------|-----------|
 | **Smoke** | Health · Domain model · Service units · API endpoints | ~185 | < 1 s | REQUIRED — any code change |
-| **Standard** | All automated tests (live excluded) | ~553 | < 5 s | REQUIRED — milestone / merge |
-| **Full** | Standard + live Polymarket API shape test | ~554 | varies | RECOMMENDED — planned releases |
+| **Standard** | All automated tests (live excluded) | ~594 | < 5 s | REQUIRED — milestone / merge |
+| **Full** | Standard + live Polymarket API shape test | ~595 | varies | RECOMMENDED — planned releases |
 
 ---
 
