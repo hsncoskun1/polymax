@@ -3,7 +3,7 @@
 **Living document — update with every version that changes behaviour in the
 fetch → discovery → sync → API chain.**
 
-Last updated: v0.5.8 (2026-04-01) · Total automated tests: **257**
+Last updated: v0.5.9 (2026-04-01) · Total automated tests: **271**
 
 ---
 
@@ -61,6 +61,7 @@ automated test suite — each scenario maps to one or more pytest tests.
 | v0.5.6 | Sync / Registry Behavior Lock — 5 registry contracts (C1–C5) + Scenario G (previously-valid market handling) + API summary integrity | Registry key format, add-only semantics, no-update-on-resync, C4 per-reason guards, mixed-payload determinism, registry stays after invalid transition, POST /sync response matches registry state | All prior sync + discovery contracts still hold | — |
 | v0.5.7 | Registry Lifecycle Semantics Lock — add-only/retained model documented as deliberate deferred decision; 11 new tests; market_sync.py lifecycle docstring added | Lifecycle decision: C (deferred); 4 rejection-reason lifecycle tests (A), closed/inactive explicit tests (B/C), sync summary gap documented (D), mixed lifecycle payload determinism (E) | All prior contracts still hold; stale entry behavior now explicit | — |
 | v0.5.8 | Sync Summary Semantics Lock — SyncResult.registry_total added; SyncResponse.registry_total_count added; SyncResult docstring clarified (fetched=candidates not raw fetch); 12 new tests | Summary semantics: processing window only; fetched≠raw API count; registry_total exposes full registry size including stale | All prior contracts still hold | — |
+| v0.5.9 | Rejection Observability Lock — SyncResult.rejected_count + rejection_breakdown added; SyncResponse exposes both fields; 14 new tests | rejected_count surfaces non-candidates; breakdown is always 5-key complete; fetched + rejected_count = total input; API passes fields through; observability read-only w.r.t. registry behavior | All prior contracts still hold | — |
 
 ---
 
@@ -238,6 +239,34 @@ the `InMemoryMarketRegistry` and what the registry looks like after sync.
 
 ---
 
+### 3.12 Rejection Observability Scenarios (v0.5.9)
+
+These scenarios lock the contract that `SyncResult` and `SyncResponse` expose
+rejection counts and per-reason breakdowns from `DiscoveryService`.
+
+**Observability contract:** `rejected_count` + `rejection_breakdown` are present in both
+`SyncResult` (service layer) and `SyncResponse` (HTTP layer). All 5 breakdown keys are
+always present. Observability is read-only — it does not affect which markets are written.
+
+| ID | Pri | Introduced | Scenario | Expected Result | Automated Test |
+|----|-----|------------|----------|-----------------|----------------|
+| ROB-001 | P0 | v0.5.9 | Sync with 3 rejected markets → `rejected_count=3` | `rejected_count` equals number of discovery-rejected markets | `TestRejectedCountSurfacesNonCandidates::test_sync_summary_includes_rejected_count_for_non_candidates` |
+| ROB-002 | P1 | v0.5.9 | All valid → `rejected_count=0` | Zero rejections when all markets pass | `TestRejectedCountSurfacesNonCandidates::test_all_valid_means_zero_rejected` |
+| ROB-003 | P1 | v0.5.9 | All rejected → `fetched=0`, `rejected_count=total` | Partition is complete and accurate | `TestRejectedCountSurfacesNonCandidates::test_all_rejected_means_zero_fetched` |
+| ROB-004 | P0 | v0.5.9 | `fetched + rejected_count = total input` invariant | Partition always sums to full input | `TestRejectedCountDistinctFromFetched::test_sync_summary_rejected_count_is_distinct_from_fetched_candidates` |
+| ROB-005 | P1 | v0.5.9 | Empty input: both counters zero, invariant holds | `fetched=0`, `rejected_count=0`, sum=0 | `TestRejectedCountDistinctFromFetched::test_partition_holds_for_empty_input` |
+| ROB-006 | P1 | v0.5.9 | Single valid input: `fetched=1`, `rejected_count=0` | Partition correct for minimal case | `TestRejectedCountDistinctFromFetched::test_partition_holds_for_single_valid` |
+| ROB-007 | P1 | v0.5.9 | Single invalid input: `fetched=0`, `rejected_count=1` | Partition correct for minimal rejected case | `TestRejectedCountDistinctFromFetched::test_partition_holds_for_single_invalid` |
+| ROB-008 | P0 | v0.5.9 | One market per rejection reason + one valid → breakdown has 1 per reason | Per-reason breakdown deterministic | `TestRejectionBreakdownDeterministic::test_sync_summary_rejection_breakdown_is_deterministic` |
+| ROB-009 | P0 | v0.5.9 | All 5 breakdown keys present even when no rejections | Never `KeyError`; all values 0 | `TestRejectionBreakdownDeterministic::test_all_keys_present_even_when_no_rejections` |
+| ROB-010 | P1 | v0.5.9 | All 5 breakdown keys present for empty input | Consistent shape regardless of input | `TestRejectionBreakdownDeterministic::test_all_keys_present_for_empty_input` |
+| ROB-011 | P1 | v0.5.9 | Two markets same rejection reason → breakdown count accumulates | `inactive=2` not `inactive=1` | `TestRejectionBreakdownDeterministic::test_multiple_rejections_same_reason_accumulate` |
+| ROB-012 | P0 | v0.5.9 | `POST /sync` API response includes `rejected_count` + `rejection_breakdown` | HTTP layer passes through both fields correctly | `test_sync_api_response_matches_service_rejection_observability` |
+| ROB-013 | P0 | v0.5.9 | Observability does not change which markets are written to registry | Registry contains only candidates; rejected markets absent | `TestObservabilityDoesNotAffectBehavior::test_rejection_observability_does_not_change_candidate_or_registry_behavior` |
+| ROB-014 | P0 | v0.5.9 | All 5 rejection reasons: none of rejected markets enter registry | `{id}-up`/`{id}-down` present only for valid candidate | `TestObservabilityDoesNotAffectBehavior::test_rejected_markets_not_in_registry_after_sync` |
+
+---
+
 ### 3.10 Retired / Deprecated Scenarios
 
 These scenarios **must not** be used as regression criteria. They described
@@ -270,7 +299,8 @@ behaviour that was intentionally removed.
 | Sync Registry Behavior | 10 | 10 | 0 | 0 |
 | Registry Lifecycle | 11 | 11 | 0 | 0 |
 | Sync Summary Semantics | 12 | 12 | 0 | 0 |
-| **Total** | **106** | **106** | **0** | **0** |
+| Rejection Observability | 14 | 14 | 0 | 0 |
+| **Total** | **120** | **120** | **0** | **0** |
 
 ### Known automation gaps
 
@@ -325,7 +355,7 @@ Covers: FETCH-001/002, DISC-ACC-001/005, DISC-REJ-001/004/005/006/007/008/009/01
 python -m pytest backend/tests/ -v
 ```
 
-All 257 tests. Current runtime: ~1.0 seconds.
+All 271 tests. Current runtime: ~1.1 seconds.
 
 ### Full regression (run after major architecture changes)
 

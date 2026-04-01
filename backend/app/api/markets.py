@@ -65,9 +65,16 @@ class SyncResponse(BaseModel):
     registry_total_count   — TOTAL registry entries after this sync, including
                              retained/stale entries from prior syncs.
 
-    Note: discovery-rejected markets and stale retained entries are NOT
-    reflected in fetched_count.  Use registry_total_count to see the full
-    registry size; use POST /discover for rejection breakdown.
+    rejected_count         — markets rejected by discovery in this call
+                             (did not become candidates).
+    rejection_breakdown    — per-reason counts for rejected markets
+                             (keys: inactive, no_order_book, empty_tokens,
+                             missing_dates, duration_out_of_range; all keys
+                             always present; 0 if no rejections for that reason).
+                             Matches the format of POST /discover response.
+
+    Full payload split: fetched_count + rejected_count = total discovery input
+    (markets that passed the fetch layer, before any rejection).
     """
 
     fetched_count: int
@@ -76,6 +83,8 @@ class SyncResponse(BaseModel):
     skipped_mapping_count: int
     skipped_duplicate_count: int
     registry_total_count: int
+    rejected_count: int
+    rejection_breakdown: dict[str, int]
 
 
 class DiscoveryResponse(BaseModel):
@@ -117,6 +126,8 @@ def trigger_sync(service: MarketSyncService = Depends(get_sync_service)):
         skipped_mapping_count=result.skipped_mapping,
         skipped_duplicate_count=result.skipped_duplicate,
         registry_total_count=result.registry_total,
+        rejected_count=result.rejected_count,
+        rejection_breakdown=result.rejection_breakdown,
     )
 
 

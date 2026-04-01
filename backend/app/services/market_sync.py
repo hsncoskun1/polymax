@@ -32,7 +32,7 @@ This is a **deliberate deferred decision**, not an oversight:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..domain.market.exceptions import DuplicateMarketError
 from ..domain.market.models import Market, create_market
@@ -75,10 +75,22 @@ class SyncResult:
                          entries from prior syncs plus any newly written ones.
                          Provides context for interpreting `written`.
 
+    rejected_count     — number of FetchedMarket records rejected by
+                         DiscoveryService in this call (did not become
+                         candidates).  Together with `fetched`, this lets
+                         the operator see the full payload split:
+                         fetched + rejected_count = total fetch layer output
+                         (minus any records skipped by the fetch layer itself).
+    rejection_breakdown — per-reason rejection counts as a string-keyed dict
+                         (keys: "inactive", "no_order_book", "empty_tokens",
+                         "missing_dates", "duration_out_of_range").
+                         All five keys are always present (value may be 0).
+                         Matches the format returned by POST /discover.
+
     What the summary does NOT tell you
     -----------------------------------
-    - How many markets were fetched raw from the Polymarket API.
-    - How many markets were rejected by discovery (and for what reason).
+    - Raw count of markets fetched from the Polymarket API (only candidates
+      and rejected-by-discovery are in this summary).
     - How many registry entries are stale (valid when written, now invalid).
     - Whether the registry is growing, stable, or shrinking over time.
     """
@@ -89,6 +101,8 @@ class SyncResult:
     skipped_mapping: int
     skipped_duplicate: int
     registry_total: int = 0
+    rejected_count: int = 0
+    rejection_breakdown: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -224,11 +238,17 @@ class MarketSyncService:
             skipped_mapping=skipped_mapping,
             skipped_duplicate=skipped_duplicate,
             registry_total=len(self._registry),
+            rejected_count=discovery_result.rejected_count,
+            rejection_breakdown={
+                r.value: count
+                for r, count in discovery_result.rejection_breakdown.items()
+            },
         )
         logger.info(
-            "Sync complete — fetched=%d mapped=%d written=%d "
+            "Sync complete — fetched=%d rejected=%d mapped=%d written=%d "
             "skipped_mapping=%d skipped_duplicate=%d",
             result.fetched,
+            result.rejected_count,
             result.mapped,
             result.written,
             result.skipped_mapping,

@@ -7,6 +7,7 @@ import pytest
 from backend.app.domain.market.registry import InMemoryMarketRegistry
 from backend.app.domain.market.types import Side, Timeframe
 from backend.app.integrations.polymarket.exceptions import PolymarketTimeoutError
+from backend.app.services.market_discovery import RejectionReason
 from backend.app.services.market_fetcher import FetchedMarket
 from backend.app.services.market_sync import MarketMapper, MarketSyncService, SyncResult
 
@@ -202,6 +203,7 @@ class TestMarketSyncService:
         assert result == SyncResult(
             fetched=0, mapped=0, written=0,
             skipped_mapping=0, skipped_duplicate=0,
+            rejection_breakdown={r.value: 0 for r in RejectionReason},
         )
 
     def test_duplicate_run_counts_skipped_duplicate(self):
