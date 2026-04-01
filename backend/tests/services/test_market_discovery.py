@@ -269,6 +269,83 @@ class TestDurationRejection:
         result = DiscoveryService().evaluate([_market_with_duration(86400)])
         assert result.rejection_breakdown[RejectionReason.DURATION_OUT_OF_RANGE] == 1
 
+    # -- Total duration vs remaining time contract ----------------------------
+
+    def test_duration_filter_uses_total_market_duration_not_remaining_time(self):
+        """Duration rule is end_date − source_timestamp (total), not end_date − now (remaining).
+
+        Scenario: market started 4 minutes ago, ends 1 minute from now.
+          total duration  = 240 + 60 = 300 s  → inside [240, 360] — valid
+          remaining time  = 60 s              → far below 240 s — invalid if remaining-based
+
+        The market must be accepted: structural 5m format is what discovery checks.
+        Entry timing ("is it too late to trade?") belongs to a later runtime layer.
+        """
+        now = datetime.now(timezone.utc)
+        market = _market(
+            source_timestamp=now - timedelta(seconds=240),
+            end_date=now + timedelta(seconds=60),
+        )
+        result = DiscoveryService().evaluate([market])
+        assert result.candidate_count == 1
+        assert result.rejected_count == 0
+
+    def test_valid_5m_market_near_expiry_is_not_rejected_by_discovery(self):
+        """A market in its final 30 seconds is still a valid 5m candidate if total duration is 300s.
+
+        active=True, all fields present, total duration=300s — the fact that
+        only ~30 seconds remain does not disqualify it at discovery stage.
+        """
+        now = datetime.now(timezone.utc)
+        market = _market(
+            source_timestamp=now - timedelta(seconds=270),
+            end_date=now + timedelta(seconds=30),
+        )
+        result = DiscoveryService().evaluate([market])
+        assert result.candidate_count == 1
+
+    def test_duration_out_of_range_rejects_120s_total_duration(self):
+        """120 s total duration is structurally a 2-minute market — not a 5m candidate."""
+        result = DiscoveryService().evaluate([_market_with_duration(120)])
+        assert result.candidate_count == 0
+        assert result.rejection_breakdown[RejectionReason.DURATION_OUT_OF_RANGE] == 1
+
+    def test_duration_out_of_range_rejects_180s_total_duration(self):
+        """180 s total duration is structurally a 3-minute market — not a 5m candidate."""
+        result = DiscoveryService().evaluate([_market_with_duration(180)])
+        assert result.candidate_count == 0
+        assert result.rejection_breakdown[RejectionReason.DURATION_OUT_OF_RANGE] == 1
+
+    def test_duration_out_of_range_rejects_600s_total_duration(self):
+        """600 s total duration is structurally a 10-minute market — not a 5m candidate."""
+        result = DiscoveryService().evaluate([_market_with_duration(600)])
+        assert result.candidate_count == 0
+        assert result.rejection_breakdown[RejectionReason.DURATION_OUT_OF_RANGE] == 1
+
+    def test_mixed_payload_keeps_valid_5m_market_even_when_near_expiry(self):
+        """Near-expiry valid market survives when batched with invalid-duration markets.
+
+        The near-expiry market (total=300s, remaining=~30s) must be in the
+        candidate list while the structurally-short and structurally-long
+        markets are rejected.
+        """
+        now = datetime.now(timezone.utc)
+        near_expiry_valid = _market(
+            market_id="near-expiry",
+            source_timestamp=now - timedelta(seconds=270),
+            end_date=now + timedelta(seconds=30),       # total=300s, remaining=30s
+        )
+        result = DiscoveryService().evaluate([
+            near_expiry_valid,
+            _market_with_duration(120),                 # too short — 2m market
+            _market_with_duration(600),                 # too long — 10m market
+            _market(active=False),                      # inactive
+        ])
+        candidate_ids = {m.market_id for m in result.candidates}
+        assert "near-expiry" in candidate_ids
+        assert result.candidate_count == 1
+        assert result.rejected_count == 3
+
 
 # ---------------------------------------------------------------------------
 # Rejection breakdown counts
