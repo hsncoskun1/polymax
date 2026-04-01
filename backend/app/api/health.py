@@ -1,8 +1,11 @@
 from fastapi import APIRouter
+from ..core.config import load_config
 
 router = APIRouter()
 
 
 @router.get("/health")
 def health_check():
-    return {"status": "ok", "service": "polymax-backend", "version": "0.1.0"}
+    cfg = load_config()
+    version = cfg.get("app", {}).get("version", "unknown")
+    return {"status": "ok", "service": "polymax-backend", "version": version}

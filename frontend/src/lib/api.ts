@@ -2,6 +2,18 @@ import { BACKEND_URL } from "./config";
 
 const BASE_URL = BACKEND_URL;
 
+export interface HealthResponse {
+  status: string;
+  service: string;
+  version: string;
+}
+
+export async function fetchHealth(): Promise<HealthResponse> {
+  const resp = await fetch(`${BASE_URL}/health`);
+  if (!resp.ok) throw new Error(`Health check failed: ${resp.status}`);
+  return resp.json();
+}
+
 export type MarketStatus = "active" | "inactive" | "closed" | "archived";
 export type Side = "up" | "down";
 
