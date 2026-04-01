@@ -36,3 +36,16 @@ export async function triggerSync(): Promise<SyncResult> {
   if (!resp.ok) throw new Error(`Sync failed: ${resp.status}`);
   return resp.json();
 }
+
+export interface DiscoverResult {
+  fetched_count: number;
+  candidate_count: number;
+  rejected_count: number;
+  rejection_breakdown: Record<string, number>;
+}
+
+export async function triggerDiscover(): Promise<DiscoverResult> {
+  const resp = await fetch(`${BASE_URL}/api/v1/markets/discover`, { method: "POST" });
+  if (!resp.ok) throw new Error(`Discover failed: ${resp.status}`);
+  return resp.json();
+}

@@ -2,6 +2,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import App from "../App";
+import DiscoverAction from "../components/DiscoverAction";
 import SyncAction from "../components/SyncAction";
 import UserPanel from "../pages/UserPanel";
 import type { Market } from "../lib/api";
@@ -245,5 +246,88 @@ describe("MarketList", () => {
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeDefined();
     });
+  });
+});
+
+// ── discover action tests ──────────────────────────────────────────────────────
+
+const MOCK_DISCOVER_RESULT = {
+  fetched_count: 10,
+  candidate_count: 3,
+  rejected_count: 7,
+  rejection_breakdown: {
+    inactive: 2,
+    missing_dates: 3,
+    duration_out_of_range: 2,
+  },
+};
+
+describe("DiscoverAction", () => {
+  it("renders Discover now button on admin panel", () => {
+    mockFetch([]);
+    renderWithRouter("/admin");
+    expect(screen.getByRole("button", { name: /discover now/i })).toBeDefined();
+  });
+
+  it("shows loading state while discovery is in progress", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {}))); // never resolves
+    renderWithRouter("/admin");
+    fireEvent.click(screen.getByRole("button", { name: /discover now/i }));
+    expect(screen.getByRole("status", { name: /discovery in progress/i })).toBeDefined();
+  });
+
+  it("renders discovery summary on successful response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(MOCK_DISCOVER_RESULT),
+      })
+    );
+    renderWithRouter("/admin");
+    fireEvent.click(screen.getByRole("button", { name: /discover now/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: /discovery result/i })).toBeDefined();
+    });
+    expect(screen.getByText("Fetched")).toBeDefined();
+    expect(screen.getByText("Candidates")).toBeDefined();
+    expect(screen.getByText("Rejected")).toBeDefined();
+  });
+
+  it("renders rejection breakdown on successful response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(MOCK_DISCOVER_RESULT),
+      })
+    );
+    render(
+      <MemoryRouter>
+        <DiscoverAction />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByRole("button", { name: /discover now/i }));
+    await waitFor(() => {
+      expect(screen.getByText("Rejection breakdown")).toBeDefined();
+    });
+    expect(screen.getByText("Inactive / closed")).toBeDefined();
+    expect(screen.getByText("Missing dates")).toBeDefined();
+    expect(screen.getByText("Duration out of range")).toBeDefined();
+  });
+
+  it("shows error message when discover request fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("Discover failed: 502"))
+    );
+    renderWithRouter("/admin");
+    fireEvent.click(screen.getByRole("button", { name: /discover now/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeDefined();
+    });
+    expect(screen.getByText(/discover failed/i)).toBeDefined();
   });
 });
