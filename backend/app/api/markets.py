@@ -52,13 +52,30 @@ class MarketResponse(BaseModel):
 
 
 class SyncResponse(BaseModel):
-    """Summary of a single manual sync run."""
+    """Summary of a single manual sync run.
+
+    Summary semantics — processing window, not full registry state
+    --------------------------------------------------------------
+    fetched_count          — discovery CANDIDATES processed (not raw Polymarket
+                             fetch count; rejected markets are not included).
+    mapped_count           — domain Market objects created (written + skipped_dup).
+    written_count          — new registry entries added in this call.
+    skipped_mapping_count  — candidates that failed mapping.
+    skipped_duplicate_count — candidates already present in registry (skipped).
+    registry_total_count   — TOTAL registry entries after this sync, including
+                             retained/stale entries from prior syncs.
+
+    Note: discovery-rejected markets and stale retained entries are NOT
+    reflected in fetched_count.  Use registry_total_count to see the full
+    registry size; use POST /discover for rejection breakdown.
+    """
 
     fetched_count: int
     mapped_count: int
     written_count: int
     skipped_mapping_count: int
     skipped_duplicate_count: int
+    registry_total_count: int
 
 
 class DiscoveryResponse(BaseModel):
@@ -99,6 +116,7 @@ def trigger_sync(service: MarketSyncService = Depends(get_sync_service)):
         written_count=result.written,
         skipped_mapping_count=result.skipped_mapping,
         skipped_duplicate_count=result.skipped_duplicate,
+        registry_total_count=result.registry_total,
     )
 
 

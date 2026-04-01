@@ -41,6 +41,7 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.5.5b Duration source semantics lock (source_timestamp confirmed as event start from Polymarket startDate; misleading domain comment fixed; 3 new tests) — complete
 - v0.5.6 Sync / registry behavior lock (5 registry contracts C1–C5 + Scenario G; 18 integration tests; POST /sync response integrity; regression matrix updated to 83 scenarios / 234 tests) — complete
 - v0.5.7 Registry lifecycle semantics lock (add-only/retained model documented as deliberate deferred decision; lifecycle docstring in market_sync.py; 11 new lifecycle integration tests A–E; 245 total tests; 94 regression scenarios) — complete
+- v0.5.8 Sync summary semantics lock (SyncResult.registry_total + SyncResponse.registry_total_count added; SyncResult docstring clarified; 12 new tests A–E; 257 total tests; 106 regression scenarios) — complete
 
 ## Quick Start
 

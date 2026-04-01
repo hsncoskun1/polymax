@@ -55,11 +55,32 @@ logger = logging.getLogger(__name__)
 class SyncResult:
     """Summary of a single sync run.
 
-    fetched            — discovery candidates that entered the map→write stage.
-    mapped             — domain Markets successfully produced.
-    written            — Markets newly written to the registry.
-    skipped_mapping    — records that could not be mapped to a Market.
-    skipped_duplicate  — records that already existed in the registry.
+    Summary semantics — processing window, not registry state
+    ---------------------------------------------------------
+    This summary describes only what happened inside THIS sync call.
+    It does NOT describe the full state of the registry.
+
+    fetched            — number of DiscoveryService CANDIDATES that entered
+                         the map→write stage.  This is NOT the raw count of
+                         markets fetched from the Polymarket API; markets
+                         rejected by discovery are invisible here.
+    mapped             — domain Market objects successfully produced
+                         (= written + skipped_duplicate, when mapping succeeds).
+    written            — new Markets written to the registry in this call.
+    skipped_mapping    — candidates whose mapper() call returned [].
+    skipped_duplicate  — candidates whose registry key already existed
+                         (DuplicateMarketError → silently skipped).
+    registry_total     — total number of entries in the registry AFTER this
+                         sync call completes.  Includes all retained/stale
+                         entries from prior syncs plus any newly written ones.
+                         Provides context for interpreting `written`.
+
+    What the summary does NOT tell you
+    -----------------------------------
+    - How many markets were fetched raw from the Polymarket API.
+    - How many markets were rejected by discovery (and for what reason).
+    - How many registry entries are stale (valid when written, now invalid).
+    - Whether the registry is growing, stable, or shrinking over time.
     """
 
     fetched: int
@@ -67,6 +88,7 @@ class SyncResult:
     written: int
     skipped_mapping: int
     skipped_duplicate: int
+    registry_total: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +223,7 @@ class MarketSyncService:
             written=written,
             skipped_mapping=skipped_mapping,
             skipped_duplicate=skipped_duplicate,
+            registry_total=len(self._registry),
         )
         logger.info(
             "Sync complete — fetched=%d mapped=%d written=%d "
