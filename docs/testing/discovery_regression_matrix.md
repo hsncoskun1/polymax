@@ -3,7 +3,7 @@
 **Living document — update with every version that changes behaviour in the
 fetch → discovery → sync → API chain.**
 
-Last updated: v0.5.5a (2026-04-01) · Total automated tests: **213**
+Last updated: v0.5.5b (2026-04-01) · Total automated tests: **216**
 
 ---
 
@@ -57,6 +57,7 @@ automated test suite — each scenario maps to one or more pytest tests.
 | v0.5.4 | `fetch_candidates()` and `_is_5m_candidate()` removed | `fetch_markets()` is the only public fetcher method | Fetcher must not filter | ✅ `fetch_candidates()` retired; ✅ `_is_5m_candidate()` retired |
 | v0.5.5 | Integration test suite — 4 contracts locked (C1–C4) | End-to-end chain from raw dict to API response | All prior unit-level contracts | — |
 | v0.5.5a | Duration semantics locked — total duration not remaining time | Near-expiry valid markets always pass discovery | Duration uses `end_date − source_timestamp` | — |
+| v0.5.5b | Duration source semantics locked — `source_timestamp` confirmed as event start time (`startDate`) | Semantic chain `startDate → source_timestamp → duration` is test-locked | Domain model comment corrected from "freshness from upstream" to "event start time" | — |
 
 ---
 
@@ -84,6 +85,8 @@ Each row is an independently testable scenario.
 | FETCH-007 | P1 | v0.3.2 | Optional fields (`slug`, `question`, `event_id`) normalise correctly | `slug=None` when absent; `question=""` when absent; `event_id` from first event | `TestNormalization::test_slug_none_when_absent` · `test_event_id_is_none_when_events_absent` |
 | FETCH-008 | P1 | v0.5.3 | `enableOrderBook` field: `True→True`, `False→False`, absent→`None` | Conservative `None` for absent field | `TestNormalization::test_enable_order_book_true_when_present` · `test_enable_order_book_false_when_false` · `test_enable_order_book_none_when_absent` |
 | FETCH-009 | P1 | v0.5.3 | `tokens` field: list preserved, `[]` preserved, absent→`None`, non-list→`None` | Faithful representation; `None` only for structural absence | `TestNormalization::test_tokens_list_preserved` · `test_tokens_empty_list_preserved` · `test_tokens_none_when_absent` · `test_tokens_none_when_not_a_list` |
+| FETCH-010 | P0 | v0.5.5b | `source_timestamp` is event start time from Gamma `startDate` (not fetch time) | `source_timestamp == parsed(startDate)` — fixed event property | `TestNormalization::test_source_timestamp_is_event_start_time_from_gamma_start_date` |
+| FETCH-011 | P0 | v0.5.5b | `startDate → source_timestamp` + `endDate → end_date` chain yields correct structural duration | `end_date - source_timestamp == event span in seconds` | `TestNormalization::test_duration_field_mapping_startDate_to_source_timestamp_and_endDate_to_end_date` |
 
 ---
 
@@ -144,6 +147,7 @@ Rules are applied in order; the first failing rule wins.
 | DUR-005 | P1 | Duration 239s (one below lower boundary) | `DURATION_OUT_OF_RANGE` | `TestDurationRejection::test_rejects_one_second_below_lower_boundary` |
 | DUR-006 | P1 | Duration 361s (one above upper boundary) | `DURATION_OUT_OF_RANGE` | `TestDurationRejection::test_rejects_one_second_above_upper_boundary` |
 | DUR-007 | P0 | Near-expiry valid + short + long + inactive in same batch | Only near-expiry valid is a candidate | `TestDurationRejection::test_mixed_payload_keeps_valid_5m_market_even_when_near_expiry` · `TestDurationSemantics::test_mixed_payload_near_expiry_valid_market_survives_with_invalid_durations` |
+| DUR-008 | P0 | `source_timestamp` = event start, `end_date` = event end; difference = structural event span | Named semantic lock: duration = event span, not an ambiguous calculation | `TestDurationRejection::test_duration_uses_canonical_structural_time_fields` |
 
 ---
 
@@ -226,16 +230,16 @@ behaviour that was intentionally removed.
 
 | Category | Total Scenarios | Fully Automated | Partially Automated | Manual Only |
 |----------|-----------------|-----------------|---------------------|-------------|
-| Fetch | 9 | 9 | 0 | 0 |
+| Fetch | 11 | 11 | 0 | 0 |
 | Discovery Acceptance | 6 | 6 | 0 | 0 |
 | Discovery Rejection | 11 | 11 | 0 | 0 |
 | Rule Priority | 6 | 6 | 0 | 0 |
-| Duration Semantics | 7 | 7 | 0 | 0 |
+| Duration Semantics | 8 | 8 | 0 | 0 |
 | Mixed Payload | 5 | 5 | 0 | 0 |
 | Sync Propagation | 8 | 8 | 0 | 0 |
 | API Response | 11 | 11 | 0 | 0 |
 | Edge Cases | 7 | 7 | 0 | 0 |
-| **Total** | **70** | **70** | **0** | **0** |
+| **Total** | **73** | **73** | **0** | **0** |
 
 ### Known automation gaps
 

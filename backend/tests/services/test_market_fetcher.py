@@ -200,6 +200,43 @@ class TestNormalization:
         result = service.fetch_markets()
         assert result[0].end_date is None
 
+    # -- Duration source semantics --------------------------------------------
+
+    def test_source_timestamp_is_event_start_time_from_gamma_start_date(self):
+        """source_timestamp carries the event's structural start time, not a fetch timestamp.
+
+        Mapping chain: Gamma API "startDate" → FetchedMarket.source_timestamp
+
+        This is the field DiscoveryService uses as the start point for duration
+        calculation.  It must equal the parsed startDate value — a fixed event
+        property — not any kind of dynamic fetch/snapshot time.
+        """
+        raw = _raw_market(startDate="2024-06-15T12:00:00Z")
+        service = PolymarketFetchService(_make_client([raw]))
+        result = service.fetch_markets()
+
+        assert result[0].source_timestamp == datetime(2024, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    def test_duration_field_mapping_startDate_to_source_timestamp_and_endDate_to_end_date(self):
+        """Both structural time fields normalise correctly and their difference is the event span.
+
+        Verifies the full mapping used by duration calculation:
+          Gamma "startDate" → source_timestamp  (event structural start)
+          Gamma "endDate"   → end_date          (event structural end)
+          end_date − source_timestamp            = 300 s (structural duration)
+
+        This locks the semantic chain that makes duration calculation valid.
+        """
+        raw = _raw_market(startDate="2024-01-01T00:00:00Z", endDate="2024-01-01T00:05:00Z")
+        service = PolymarketFetchService(_make_client([raw]))
+        result = service.fetch_markets()
+
+        m = result[0]
+        assert m.source_timestamp == datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        assert m.end_date == datetime(2024, 1, 1, 0, 5, 0, tzinfo=timezone.utc)
+        structural_duration = (m.end_date - m.source_timestamp).total_seconds()
+        assert structural_duration == 300.0
+
     def test_enable_order_book_true_when_present(self):
         raw = _raw_market(enableOrderBook=True)
         service = PolymarketFetchService(_make_client([raw]))
