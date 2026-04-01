@@ -37,6 +37,7 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.5.3 Discovery input quality tightening (enable_order_book + tokens fields on FetchedMarket; NO_ORDER_BOOK + EMPTY_TOKENS rejection reasons in DiscoveryService) — complete
 - v0.5.4 Discovery single-entry cleanup (removed fetch_candidates + _is_5m_candidate dead code; PolymarketFetchService is now a pure normalisation layer) — complete
 - v0.5.5 Discovery flow integration lock (integration test suite; four architecture contracts locked: C1 fetcher=normaliser, C2 discovery=sole selector, C3 sync=respects discovery, C4 endpoint=surfaces discovery output) — complete
+- v0.5.5a Duration semantics lock (duration rule verified as total_duration not remaining_time; 10 new tests — 6 unit + 4 integration — lock the near-expiry contract) — complete
 
 ## Quick Start
 
