@@ -45,6 +45,7 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.5.9 Rejection observability lock (SyncResult.rejected_count + rejection_breakdown added; SyncResponse exposes both fields; 14 new integration tests A–E; 271 total tests; 120 regression scenarios) — complete
 - v0.5.10 Rejection taxonomy contract lock (DiscoveryResult.string_breakdown canonical serialization point; single source for enum→string conversion; 15 new taxonomy contract tests A–E; 286 total tests; 135 regression scenarios) — complete
 - v0.5.11 Discover/sync contract alignment lock (DiscoveryResponse docstring expanded; intentional fetched_count semantic difference documented; 10 new alignment tests A–E; 296 total tests; 145 regression scenarios) — complete
+- v0.5.12 Cross-layer field semantics lock (SyncResult docstring API field name mapping table added; 9 new cross-layer field semantics tests A–E; 305 total tests; 154 regression scenarios) — complete
 
 ## Quick Start
 

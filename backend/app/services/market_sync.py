@@ -93,6 +93,23 @@ class SyncResult:
       and rejected-by-discovery are in this summary).
     - How many registry entries are stale (valid when written, now invalid).
     - Whether the registry is growing, stable, or shrinking over time.
+
+    Cross-layer field name mapping (SyncResult → SyncResponse API)
+    --------------------------------------------------------------
+    SyncResult field    → SyncResponse JSON field
+    ------------------    -------------------------
+    fetched             → fetched_count
+    mapped              → mapped_count
+    written             → written_count
+    skipped_mapping     → skipped_mapping_count
+    skipped_duplicate   → skipped_duplicate_count
+    registry_total      → registry_total_count
+    rejected_count      → rejected_count          (same name)
+    rejection_breakdown → rejection_breakdown      (same name)
+
+    Note: The `_count` suffix in SyncResponse field names is a convention
+    for numeric API response fields.  SyncResult uses shorter names for
+    internal ergonomics.  The semantics are identical in both layers.
     """
 
     fetched: int
