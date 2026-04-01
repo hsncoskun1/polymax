@@ -7,7 +7,11 @@ type State =
   | { status: "success"; result: SyncResult }
   | { status: "error"; message: string };
 
-export default function SyncAction() {
+interface SyncActionProps {
+  onSuccess?: () => void;
+}
+
+export default function SyncAction({ onSuccess }: SyncActionProps) {
   const [state, setState] = useState<State>({ status: "idle" });
 
   async function handleSync() {
@@ -15,6 +19,7 @@ export default function SyncAction() {
     try {
       const result = await triggerSync();
       setState({ status: "success", result });
+      onSuccess?.();
     } catch (err) {
       setState({
         status: "error",

@@ -1,6 +1,10 @@
 import SyncAction from "../components/SyncAction";
 
-export default function AdminPanel() {
+interface AdminPanelProps {
+  onSyncDone?: () => void;
+}
+
+export default function AdminPanel({ onSyncDone }: AdminPanelProps) {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Admin Panel</h1>
@@ -9,7 +13,7 @@ export default function AdminPanel() {
         <StatusChip label="Frontend" value="v0.1.0" />
         <StatusChip label="Uptime" value="—" />
       </div>
-      <SyncAction />
+      <SyncAction onSuccess={onSyncDone} />
     </div>
   );
 }

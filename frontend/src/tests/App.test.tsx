@@ -2,6 +2,8 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import App from "../App";
+import SyncAction from "../components/SyncAction";
+import UserPanel from "../pages/UserPanel";
 import type { Market } from "../lib/api";
 
 // ── fetch mock setup ──────────────────────────────────────────────────────────
@@ -131,6 +133,80 @@ describe("SyncAction", () => {
       expect(screen.getByRole("alert")).toBeDefined();
     });
     expect(screen.getByText(/sync failed/i)).toBeDefined();
+  });
+});
+
+// ── sync → refresh flow tests ─────────────────────────────────────────────────
+
+describe("SyncAction onSuccess callback", () => {
+  it("calls onSuccess after successful sync", async () => {
+    const onSuccess = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(MOCK_SYNC_RESULT),
+      })
+    );
+    render(
+      <MemoryRouter>
+        <SyncAction onSuccess={onSuccess} />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByRole("button", { name: /sync now/i }));
+    await waitFor(() => {
+      expect(onSuccess).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not call onSuccess when sync fails", async () => {
+    const onSuccess = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("Sync failed: 502"))
+    );
+    render(
+      <MemoryRouter>
+        <SyncAction onSuccess={onSuccess} />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByRole("button", { name: /sync now/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeDefined();
+    });
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  it("re-fetches market list when UserPanel receives a new refreshKey", async () => {
+    let marketsGetCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => {
+        marketsGetCount++;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve([]),
+        });
+      })
+    );
+
+    // Mount UserPanel with refreshKey=0 — MarketList mounts → fetches once
+    const { rerender } = render(
+      <MemoryRouter>
+        <UserPanel refreshKey={0} />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(marketsGetCount).toBe(1));
+
+    // Simulate sync completing: refreshKey increments → MarketList re-keyed → fetches again
+    rerender(
+      <MemoryRouter>
+        <UserPanel refreshKey={1} />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(marketsGetCount).toBe(2));
   });
 });
 
