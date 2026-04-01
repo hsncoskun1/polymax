@@ -1,6 +1,6 @@
 # POLYMAX — Discovery/Sync Contract Atlas
 
-**Introduced:** v0.5.22 · **Last updated:** v0.5.22 (2026-04-01)
+**Introduced:** v0.5.22 · **Last updated:** v0.5.23 (2026-04-01)
 
 Single-page canonical index of every locked contract in the fetch → discovery
 → sync → API chain.  This document does not duplicate content — it links to
