@@ -3,7 +3,7 @@
 **Living document — update with every version that changes behaviour in the
 fetch → discovery → sync → API chain.**
 
-Last updated: v0.5.17 (2026-04-01) · Total automated tests: **401**
+Last updated: v0.5.18 (2026-04-01) · Total automated tests: **423** (+ 1 live-skipped)
 
 ---
 
@@ -70,6 +70,7 @@ automated test suite — each scenario maps to one or more pytest tests.
 | v0.5.15 | Pipeline Edge-State Contract Lock — SyncResult docstring extended with edge-state reference table (5 canonical states: empty/all-rejected/all-map-failed/all-duplicate/all-new-valid); Status A: no production changes needed; 16 new edge-state contract tests (A–F) | empty cross-layer invariant locked; all-rejected cross-layer partition locked; all-map-failed service/invariant locked; all-duplicate partition/registry locked; all-new-valid candidate-alignment locked; cross-layer invariants (candidate_count==fetched_count; discover.fetched==sync.fetched+sync.rejected) tested for all edge states | All prior contracts still hold | — |
 | v0.5.16 | Fetcher Input Normalization Contract Lock — _normalize() docstring extended with field normalization policy table; Status A: normalization already consistent; 34 new boundary-case normalization tests (A–F) | question None/absent/''→''; slug falsy→None; market_id blank→skip; datetime absent/invalid→None; active/closed absent→False; enable_order_book absent→None (conservative, not False); tokens non-list→None (conservative, not []); event_id extracted from first events dict; normalization never filters candidates | All prior contracts still hold | — |
 | v0.5.17 | Canonical Text Field Normalization Lock — Status B: whitespace-only slug caused silent downstream mapping failure (truthy blank → symbol validation failure); minimal production fix: slug strip+None-ify whitespace-only; question strip whitespace; FetchedMarket docstring updated; v0.5.16 behavior test updated; 20 new canonical normalization tests (A–F) | slug whitespace-only→None; slug always None or stripped non-blank; question whitespace-only→''; question always stripped str; fix prevents mapper ValueError from whitespace slug; discovery outcome unchanged; mapper handles slug=None safely | All prior contracts still hold | whitespace-only slug as truthy value retired |
+| v0.5.18 | Live Gamma Contract Snapshot Lock — Approach A: committed fixture (gamma_snapshot.json, 10 records covering all discovery outcomes); conftest.py with live marker; 22 fixture-based contract tests (A–F) + 1 @pytest.mark.live test (skipped by default); fixture documents expected Gamma API schema | fixture schema contract (field presence/type); pipeline normalization on fixture; discovery candidate/rejection counts; sync deterministic summary; cross-layer invariants on fixture; @pytest.mark.live path for real API shape verification | All prior contracts still hold | — |
 
 ---
 
@@ -383,7 +384,8 @@ behaviour that was intentionally removed.
 | Pipeline Edge-State Contract | 16 | 16 | 0 | 0 |
 | Fetcher Input Normalization Contract | 34 | 34 | 0 | 0 |
 | Canonical Text Field Normalization | 20 | 20 | 0 | 0 |
-| **Total** | **250** | **250** | **0** | **0** |
+| Live Gamma Contract Snapshot | 23 | 22 | 0 | 1 live-skipped |
+| **Total** | **273** | **272** | **0** | **1 live-skipped** |
 
 ### Known automation gaps
 
@@ -438,7 +440,7 @@ Covers: FETCH-001/002, DISC-ACC-001/005, DISC-REJ-001/004/005/006/007/008/009/01
 python -m pytest backend/tests/ -v
 ```
 
-All 401 tests. Current runtime: ~1.0 seconds.
+All 423 tests (+ 1 live-skipped). Current runtime: ~1.1 seconds.
 
 ### Full regression (run after major architecture changes)
 

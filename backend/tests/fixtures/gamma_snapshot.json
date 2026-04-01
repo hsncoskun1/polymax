@@ -1,0 +1,135 @@
+[
+  {
+    "_comment": "VALID 5m BTC market — passes all 5 discovery rules",
+    "id": "btc-100k-snap-001",
+    "question": "Will BTC exceed $100,000 by end of window?",
+    "slug": "btc-100k-snap-001",
+    "active": true,
+    "closed": false,
+    "enableOrderBook": true,
+    "tokens": [
+      {"outcome": "Yes", "token_id": "tok-yes-001"},
+      {"outcome": "No",  "token_id": "tok-no-001"}
+    ],
+    "startDate": "2024-06-01T12:00:00Z",
+    "endDate":   "2024-06-01T12:05:00Z",
+    "events": [{"id": "evt-btc-001", "title": "BTC June 2024"}]
+  },
+  {
+    "_comment": "VALID 5m ETH market — second valid candidate",
+    "id": "eth-3k-snap-002",
+    "question": "Will ETH exceed $3,000 by end of window?",
+    "slug": "eth-3k-snap-002",
+    "active": true,
+    "closed": false,
+    "enableOrderBook": true,
+    "tokens": [
+      {"outcome": "Yes", "token_id": "tok-yes-002"},
+      {"outcome": "No",  "token_id": "tok-no-002"}
+    ],
+    "startDate": "2024-06-01T12:00:00Z",
+    "endDate":   "2024-06-01T12:04:00Z",
+    "events": [{"id": "evt-eth-002", "title": "ETH June 2024"}]
+  },
+  {
+    "_comment": "REJECTED: active=false — INACTIVE rule",
+    "id": "inactive-snap-003",
+    "question": "Will SOL exceed $200?",
+    "slug": "sol-200-snap-003",
+    "active": false,
+    "closed": false,
+    "enableOrderBook": true,
+    "tokens": [{"outcome": "Yes"}, {"outcome": "No"}],
+    "startDate": "2024-06-01T12:00:00Z",
+    "endDate":   "2024-06-01T12:05:00Z",
+    "events": [{"id": "evt-sol-003"}]
+  },
+  {
+    "_comment": "REJECTED: enableOrderBook=false — NO_ORDER_BOOK rule",
+    "id": "no-orderbook-snap-004",
+    "question": "Will BNB exceed $500?",
+    "slug": "bnb-500-snap-004",
+    "active": true,
+    "closed": false,
+    "enableOrderBook": false,
+    "tokens": [{"outcome": "Yes"}, {"outcome": "No"}],
+    "startDate": "2024-06-01T12:00:00Z",
+    "endDate":   "2024-06-01T12:05:00Z",
+    "events": [{"id": "evt-bnb-004"}]
+  },
+  {
+    "_comment": "REJECTED: tokens=[] — EMPTY_TOKENS rule",
+    "id": "no-tokens-snap-005",
+    "question": "Will MATIC exceed $1?",
+    "slug": "matic-1-snap-005",
+    "active": true,
+    "closed": false,
+    "enableOrderBook": true,
+    "tokens": [],
+    "startDate": "2024-06-01T12:00:00Z",
+    "endDate":   "2024-06-01T12:05:00Z",
+    "events": [{"id": "evt-matic-005"}]
+  },
+  {
+    "_comment": "REJECTED: startDate absent — MISSING_DATES rule",
+    "id": "missing-dates-snap-006",
+    "question": "Will XRP exceed $1?",
+    "slug": "xrp-1-snap-006",
+    "active": true,
+    "closed": false,
+    "enableOrderBook": true,
+    "tokens": [{"outcome": "Yes"}, {"outcome": "No"}],
+    "endDate": "2024-06-01T12:05:00Z",
+    "events": [{"id": "evt-xrp-006"}]
+  },
+  {
+    "_comment": "REJECTED: duration=3600s — DURATION_OUT_OF_RANGE rule",
+    "id": "hourly-snap-007",
+    "question": "Will BTC hold $90,000 for an hour?",
+    "slug": "btc-90k-hourly-007",
+    "active": true,
+    "closed": false,
+    "enableOrderBook": true,
+    "tokens": [{"outcome": "Yes"}, {"outcome": "No"}],
+    "startDate": "2024-06-01T12:00:00Z",
+    "endDate":   "2024-06-01T13:00:00Z",
+    "events": [{"id": "evt-btc-hourly-007"}]
+  },
+  {
+    "_comment": "EDGE: enableOrderBook absent (None) — conservative NO_ORDER_BOOK reject",
+    "id": "eob-absent-snap-008",
+    "question": "Will DOGE exceed $0.50?",
+    "slug": "doge-050-snap-008",
+    "active": true,
+    "closed": false,
+    "tokens": [{"outcome": "Yes"}, {"outcome": "No"}],
+    "startDate": "2024-06-01T12:00:00Z",
+    "endDate":   "2024-06-01T12:05:00Z",
+    "events": [{"id": "evt-doge-008"}]
+  },
+  {
+    "_comment": "EDGE: events absent — event_id should be None; otherwise valid",
+    "id": "no-events-snap-009",
+    "question": "Will ETH exceed $4,000?",
+    "slug": "eth-4k-snap-009",
+    "active": true,
+    "closed": false,
+    "enableOrderBook": true,
+    "tokens": [{"outcome": "Yes"}, {"outcome": "No"}],
+    "startDate": "2024-06-01T12:00:00Z",
+    "endDate":   "2024-06-01T12:05:00Z"
+  },
+  {
+    "_comment": "EDGE: closed=true — INACTIVE reject (closed takes precedence over active=true)",
+    "id": "closed-snap-010",
+    "question": "Will BTC hit ATH?",
+    "slug": "btc-ath-snap-010",
+    "active": true,
+    "closed": true,
+    "enableOrderBook": true,
+    "tokens": [{"outcome": "Yes"}, {"outcome": "No"}],
+    "startDate": "2024-06-01T12:00:00Z",
+    "endDate":   "2024-06-01T12:05:00Z",
+    "events": [{"id": "evt-btc-010"}]
+  }
+]
