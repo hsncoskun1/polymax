@@ -28,6 +28,7 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 
 ### Discovery (v0.4.x)
 - v0.4.1 Discovery shell (DiscoveryService, RejectionReason, candidate selection with reason breakdown) — complete
+- v0.4.2 Manual discovery API (POST /api/v1/markets/discover — fetch → evaluate, no registry write) — complete
 
 ## Quick Start
 
