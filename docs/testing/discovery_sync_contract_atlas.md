@@ -338,7 +338,8 @@ PASSED, connection error, value-only change) vs optional proactive cadence.
 
 | I want to know… | Go to |
 |-----------------|-------|
-| Full scenario matrix (all 360+ test scenarios) | `docs/testing/discovery_regression_matrix.md` |
+| Full scenario matrix (all 400+ test scenarios) | `docs/testing/discovery_regression_matrix.md` |
+| Which tests to run for a given change | `docs/testing/regression_tiers.md` |
 | How to refresh the Gamma fixture | `docs/testing/gamma_contract_workflow.md` |
 | Who decides on drift response | `docs/testing/gamma_drift_response_roles.md` |
 | When to refresh (trigger policy) | `docs/testing/gamma_snapshot_refresh_policy.md` |
