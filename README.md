@@ -52,6 +52,7 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.5.16 Fetcher input normalization contract lock (_normalize() field policy table; Status A — normalization already consistent; boundary cases documented: question None→'', slug falsy→None, enableOrderBook absent→None, tokens non-list→None; 34 new normalization contract tests A–F; 381 total tests; 230 regression scenarios) — complete
 - v0.5.17 Canonical text field normalization lock (Status B — whitespace-only slug caused silent downstream mapping failure; production fix: slug strip+None-ify whitespace-only, question strip whitespace; FetchedMarket docstring updated; 20 new canonical normalization tests A–F; 401 total tests; 250 regression scenarios) — complete
 - v0.5.18 Live Gamma contract snapshot lock (Approach A — committed fixture gamma_snapshot.json 10 records; conftest.py live marker; 22 fixture-based contract tests A–F + 1 @pytest.mark.live test; 423 total tests; 273 regression scenarios) — complete
+- v0.5.19 Upstream drift triage workflow lock (Status A — process contract was missing; tools/refresh_gamma_snapshot.py manual CLI helper with REQUIRED_FIELDS/OPTIONAL_FIELDS validation; docs/testing/gamma_contract_workflow.md full triage workflow doc; 31 new drift triage tests A–E; 454 total tests; 304 regression scenarios) — complete
 
 ## Quick Start
 

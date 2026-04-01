@@ -3,7 +3,7 @@
 **Living document — update with every version that changes behaviour in the
 fetch → discovery → sync → API chain.**
 
-Last updated: v0.5.18 (2026-04-01) · Total automated tests: **423** (+ 1 live-skipped)
+Last updated: v0.5.19 (2026-04-01) · Total automated tests: **454** (+ 1 live-skipped)
 
 ---
 
@@ -71,6 +71,7 @@ automated test suite — each scenario maps to one or more pytest tests.
 | v0.5.16 | Fetcher Input Normalization Contract Lock — _normalize() docstring extended with field normalization policy table; Status A: normalization already consistent; 34 new boundary-case normalization tests (A–F) | question None/absent/''→''; slug falsy→None; market_id blank→skip; datetime absent/invalid→None; active/closed absent→False; enable_order_book absent→None (conservative, not False); tokens non-list→None (conservative, not []); event_id extracted from first events dict; normalization never filters candidates | All prior contracts still hold | — |
 | v0.5.17 | Canonical Text Field Normalization Lock — Status B: whitespace-only slug caused silent downstream mapping failure (truthy blank → symbol validation failure); minimal production fix: slug strip+None-ify whitespace-only; question strip whitespace; FetchedMarket docstring updated; v0.5.16 behavior test updated; 20 new canonical normalization tests (A–F) | slug whitespace-only→None; slug always None or stripped non-blank; question whitespace-only→''; question always stripped str; fix prevents mapper ValueError from whitespace slug; discovery outcome unchanged; mapper handles slug=None safely | All prior contracts still hold | whitespace-only slug as truthy value retired |
 | v0.5.18 | Live Gamma Contract Snapshot Lock — Approach A: committed fixture (gamma_snapshot.json, 10 records covering all discovery outcomes); conftest.py with live marker; 22 fixture-based contract tests (A–F) + 1 @pytest.mark.live test (skipped by default); fixture documents expected Gamma API schema | fixture schema contract (field presence/type); pipeline normalization on fixture; discovery candidate/rejection counts; sync deterministic summary; cross-layer invariants on fixture; @pytest.mark.live path for real API shape verification | All prior contracts still hold | — |
+| v0.5.19 | Upstream Drift Triage Workflow Lock — Status A: technical contracts sufficient, process contract missing; added tools/refresh_gamma_snapshot.py (manual CLI helper, REQUIRED_FIELDS/OPTIONAL_FIELDS constants, check_required_fields/check_optional_fields validation functions); added docs/testing/gamma_contract_workflow.md (6-question workflow doc: when/who/how to refresh, field sanitization, expected vs breaking drift classification, live test interpretation, fixture coverage requirements); 31 new drift triage workflow tests (A–E) | workflow docs cover all 6 required questions; expected vs breaking drift distinction explicit; helper script + docs reference same canonical fixture path; check_required_fields() fails loudly on missing shape; REQUIRED_FIELDS aligned with _normalize() runtime behaviour | All prior contracts still hold | Real Gamma API integration gap documented in gamma_contract_workflow.md |
 
 ---
 
@@ -343,6 +344,59 @@ that previously existed only as scattered unit/integration checks.
 
 ---
 
+### 3.16 Upstream Drift Triage Workflow Scenarios (v0.5.19)
+
+These scenarios lock the drift triage process: how the team detects, classifies, and
+responds to Gamma API upstream shape changes without breaking CI or silently accepting
+contract regressions.
+
+**Assessment**: Status A — technical contract (fixture + tests) was sufficient; *process*
+contract (when/how to refresh, how to classify drifts) was undocumented.  No production
+code changes required.
+
+**Artifacts added:**
+- `tools/refresh_gamma_snapshot.py` — manual CLI helper with `REQUIRED_FIELDS` /
+  `OPTIONAL_FIELDS` constants and `check_required_fields()` / `check_optional_fields()`
+  validation functions.
+- `docs/testing/gamma_contract_workflow.md` — full drift triage workflow document
+  answering all 6 process questions.
+
+| ID | Pri | Introduced | Scenario | Expected Result | Automated Test |
+|----|-----|------------|----------|-----------------|----------------|
+| DTW-001 | P1 | v0.5.19 | Workflow doc exists at expected path | `docs/testing/gamma_contract_workflow.md` present | `TestFixtureRefreshWorkflowDocsCoverRequiredSteps::test_workflow_doc_exists` |
+| DTW-002 | P1 | v0.5.19 | Doc answers: when to refresh | Section on refresh trigger conditions present | `test_doc_answers_when_to_refresh` |
+| DTW-003 | P1 | v0.5.19 | Doc answers: how to refresh (step-by-step) | Step-by-step procedure present | `test_doc_answers_how_to_refresh` |
+| DTW-004 | P1 | v0.5.19 | Doc answers: which fields sanitized | Sanitization section present | `test_doc_answers_which_fields_sanitized` |
+| DTW-005 | P0 | v0.5.19 | Doc answers: expected vs breaking drift classification | Drift categories named | `test_doc_answers_expected_vs_breaking_classification` |
+| DTW-006 | P1 | v0.5.19 | Doc answers: fixture update vs contract review | Contract review trigger documented | `test_doc_answers_fixture_update_vs_contract_review` |
+| DTW-007 | P1 | v0.5.19 | Doc answers: live test skip/fail interpretation | Live test output interpretation present | `test_doc_answers_live_test_interpretation` |
+| DTW-008 | P0 | v0.5.19 | `expected drift` category explicitly named | Term appears in doc | `TestDriftTriageContractDistinguishesExpectedVsBreaking::test_expected_drift_category_named` |
+| DTW-009 | P0 | v0.5.19 | `breaking drift` category explicitly named | Term appears in doc | `test_breaking_drift_category_named` |
+| DTW-010 | P1 | v0.5.19 | Expected drift → fixture update only | Action documented | `test_expected_drift_has_fixture_only_action` |
+| DTW-011 | P0 | v0.5.19 | Breaking drift → contract review required | Review requirement documented | `test_breaking_drift_requires_contract_review` |
+| DTW-012 | P1 | v0.5.19 | Required vs optional field table present | Table in doc | `test_required_vs_optional_field_table_present` |
+| DTW-013 | P0 | v0.5.19 | Workflow doc references canonical fixture path | `backend/tests/fixtures/gamma_snapshot.json` in doc | `TestLiveContractToolingAndDocsPointToSameCanonicalSource::test_workflow_doc_references_canonical_fixture_path` |
+| DTW-014 | P0 | v0.5.19 | Helper script references canonical fixture path | Same path in script | `test_helper_script_references_canonical_fixture_path` |
+| DTW-015 | P0 | v0.5.19 | Both artifacts agree on fixture path | Doc and script match | `test_both_reference_same_fixture_path` |
+| DTW-016 | P1 | v0.5.19 | Canonical fixture file actually exists | File present on disk | `test_fixture_file_actually_exists` |
+| DTW-017 | P1 | v0.5.19 | Helper script file exists | `tools/refresh_gamma_snapshot.py` present | `test_helper_script_exists` |
+| DTW-018 | P0 | v0.5.19 | `check_required_fields()` passes on complete record | Returns `[]` | `TestSnapshotRefreshToolFailsLoudlyOnMissingRequiredShape::test_check_required_fields_returns_empty_for_complete_record` |
+| DTW-019 | P0 | v0.5.19 | `check_required_fields()` returns missing field name | Returns field name when absent | `test_check_required_fields_returns_missing_field` |
+| DTW-020 | P0 | v0.5.19 | `check_required_fields([])` returns all required fields | Empty records = all required fields missing | `test_check_required_fields_empty_records_returns_all_required` |
+| DTW-021 | P1 | v0.5.19 | Field present in any record passes the check | One record with field = pass | `test_field_present_in_any_record_passes_check` |
+| DTW-022 | P1 | v0.5.19 | `check_optional_fields()` passes on complete record | Returns `[]` | `test_check_optional_fields_returns_empty_for_complete_record` |
+| DTW-023 | P1 | v0.5.19 | `REQUIRED_FIELDS` non-empty | List has entries | `test_required_fields_list_is_non_empty` |
+| DTW-024 | P1 | v0.5.19 | `OPTIONAL_FIELDS` non-empty | List has entries | `test_optional_fields_list_is_non_empty` |
+| DTW-025 | P0 | v0.5.19 | `REQUIRED_FIELDS` and `OPTIONAL_FIELDS` do not overlap | No field in both lists | `test_required_and_optional_fields_do_not_overlap` |
+| DTW-026 | P0 | v0.5.19 | Every `REQUIRED_FIELD` appears as `raw.get("field"...)` in `_normalize()` | Runtime/docs aligned | `TestRuntimeContractDocsAndWorkflowRemainAligned::test_every_required_field_is_read_by_normalize` |
+| DTW-027 | P0 | v0.5.19 | Every `OPTIONAL_FIELD` appears as `raw.get("field"...)` in `_normalize()` | Runtime/docs aligned | `test_every_optional_field_is_read_by_normalize` |
+| DTW-028 | P1 | v0.5.19 | Workflow doc mentions every `REQUIRED_FIELD` in its field table | Doc coverage complete | `test_workflow_doc_required_field_table_includes_all_required_fields` |
+| DTW-029 | P1 | v0.5.19 | Workflow doc mentions every `OPTIONAL_FIELD` in its field table | Doc coverage complete | `test_workflow_doc_optional_field_table_includes_all_optional_fields` |
+| DTW-030 | P0 | v0.5.19 | Canonical fixture path constant matches actual file location | Path is not stale | `test_fixture_canonical_path_consistent_across_all_artifacts` |
+| DTW-031 | P0 | v0.5.19 | `REQUIRED_FIELDS` covers all discovery-critical fields | `active`, `closed`, `enableOrderBook`, `tokens`, `startDate`, `endDate` present | `test_helper_script_and_fetcher_agree_on_required_field_count` |
+
+---
+
 ### 3.10 Retired / Deprecated Scenarios
 
 These scenarios **must not** be used as regression criteria. They described
@@ -385,13 +439,14 @@ behaviour that was intentionally removed.
 | Fetcher Input Normalization Contract | 34 | 34 | 0 | 0 |
 | Canonical Text Field Normalization | 20 | 20 | 0 | 0 |
 | Live Gamma Contract Snapshot | 23 | 22 | 0 | 1 live-skipped |
-| **Total** | **273** | **272** | **0** | **1 live-skipped** |
+| Upstream Drift Triage Workflow | 31 | 31 | 0 | 0 |
+| **Total** | **304** | **303** | **0** | **1 live-skipped** |
 
 ### Known automation gaps
 
 | Gap | Risk | Recommended Action |
 |-----|------|-------------------|
-| Real Gamma API integration (live HTTP) | API shape changes undetected | E2E/contract test suite (future milestone) |
+| Real Gamma API integration (live HTTP) | API shape changes undetected | ✅ Partially addressed in v0.5.18 (fixture lock) and v0.5.19 (drift triage workflow + manual helper); full live CI integration is a future milestone |
 | `POST /sync` endpoint at integration level (real fetcher+discovery, mock client) | Sync endpoint response mismatch | ✅ Covered in v0.5.6 — `test_sync_endpoint_response_summary_matches_registry_final_state` |
 | Concurrent registry writes | Race condition on parallel syncs | Applicable only when scheduler is added |
 | `end_date` field on `POST /sync` response | Payload drift | Currently no sync response includes per-market details |
