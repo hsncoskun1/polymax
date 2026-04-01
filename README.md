@@ -54,6 +54,7 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.5.18 Live Gamma contract snapshot lock (Approach A — committed fixture gamma_snapshot.json 10 records; conftest.py live marker; 22 fixture-based contract tests A–F + 1 @pytest.mark.live test; 423 total tests; 273 regression scenarios) — complete
 - v0.5.19 Upstream drift triage workflow lock (Status A — process contract was missing; tools/refresh_gamma_snapshot.py manual CLI helper with REQUIRED_FIELDS/OPTIONAL_FIELDS validation; docs/testing/gamma_contract_workflow.md full triage workflow doc; 31 new drift triage tests A–E; 454 total tests; 304 regression scenarios) — complete
 - v0.5.20 Drift response ownership lock (Status A — operational ownership undefined; docs/testing/gamma_drift_response_roles.md ownership doc with roles/decision-matrix/live-test-action-table/fixture-refresh-checklist; 29 new ownership tests A–E; 483 total tests; 333 regression scenarios) — complete
+- v0.5.21 Snapshot refresh trigger policy lock (Status B — on-demand + optional scheduled; docs/testing/gamma_snapshot_refresh_policy.md with required triggers/negative triggers/optional cadence/decision flowchart; 27 new trigger policy tests A–E; 510 total tests; 360 regression scenarios) — complete
 
 ## Quick Start
 
