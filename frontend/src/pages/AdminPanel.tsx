@@ -10,8 +10,8 @@ export default function AdminPanel({ onSyncDone }: AdminPanelProps) {
     <div className="max-w-4xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Admin Panel</h1>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatusChip label="Backend" value="v0.1.0" />
-        <StatusChip label="Frontend" value="v0.1.0" />
+        <StatusChip label="Backend" value="—" />
+        <StatusChip label="Frontend" value="—" />
         <StatusChip label="Uptime" value="—" />
       </div>
       <DiscoverAction />

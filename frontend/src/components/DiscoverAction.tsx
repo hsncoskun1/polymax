@@ -75,6 +75,8 @@ export default function DiscoverAction() {
 
 const BREAKDOWN_LABELS: Record<string, string> = {
   inactive: "Inactive / closed",
+  no_order_book: "No order book",
+  empty_tokens: "Empty tokens",
   missing_dates: "Missing dates",
   duration_out_of_range: "Duration out of range",
 };
