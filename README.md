@@ -47,6 +47,7 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.5.11 Discover/sync contract alignment lock (DiscoveryResponse docstring expanded; intentional fetched_count semantic difference documented; 10 new alignment tests A–E; 296 total tests; 145 regression scenarios) — complete
 - v0.5.12 Cross-layer field semantics lock (SyncResult docstring API field name mapping table added; 9 new cross-layer field semantics tests A–E; 305 total tests; 154 regression scenarios) — complete
 - v0.5.13 Mapper multiplicity contract lock (MarketMapper.MARKETS_PER_CANDIDATE=2 constant; exact-two canonical contract documented; 14 new multiplicity tests A–E; 319 total tests; 168 regression scenarios) — complete
+- v0.5.14 Mapping failure semantics lock (SyncResult three-pipeline-gate section: Gate 1 discovery rejection / Gate 2 mapping failure / Gate 3 registry duplicate; pipeline invariant documented; 12 new mapping failure semantics tests A–E; 331 total tests; 180 regression scenarios) — complete
 
 ## Quick Start
 

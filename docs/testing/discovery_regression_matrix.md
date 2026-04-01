@@ -3,7 +3,7 @@
 **Living document — update with every version that changes behaviour in the
 fetch → discovery → sync → API chain.**
 
-Last updated: v0.5.13 (2026-04-01) · Total automated tests: **319**
+Last updated: v0.5.14 (2026-04-01) · Total automated tests: **331**
 
 ---
 
@@ -66,6 +66,7 @@ automated test suite — each scenario maps to one or more pytest tests.
 | v0.5.11 | Discover/Sync Contract Alignment Lock — DiscoveryResponse docstring expanded with intentional differences; 10 new alignment tests | candidate alignment: discover.candidate_count==sync.fetched_count; shared taxonomy/zero-count; intentional fetched_count difference documented; operator consistency under mixed payload; no behavioral changes | All prior contracts still hold | — |
 | v0.5.12 | Cross-Layer Field Semantics Lock — SyncResult docstring extended with API field name mapping table; 9 new cross-layer field semantics tests | discover/sync field sets locked; SyncResult→SyncResponse _count suffix convention documented; raw/candidate/rejected partition naming consistent; registry_total semantically distinct from processing-window fields; docs/runtime alignment verified | All prior contracts still hold | — |
 | v0.5.13 | Mapper Multiplicity Contract Lock — MarketMapper docstring expanded with explicit multiplicity contract; MARKETS_PER_CANDIDATE=2 constant added; SyncResult.mapped docstring clarified; 14 new multiplicity tests | exact-two canonical contract; mapped counts Market objects not candidates; written+skipped_duplicate=mapped partition; -up/-down identity stable; docs/runtime/summary alignment | All prior contracts still hold | — |
+| v0.5.14 | Mapping Failure Semantics Lock — SyncResult docstring extended with three-pipeline-gate section (Gate 1: discovery rejection, Gate 2: mapping failure, Gate 3: registry duplicate); pipeline invariant documented; 12 new mapping failure semantics tests | Gate 2 (skipped_mapping) is distinct from Gate 1 (rejected_count) and Gate 3 (skipped_duplicate); skipped_mapping counts candidates not Market objects; mapping failure does not write to registry; pipeline invariant: (fetched−skipped_mapping)×2=mapped; docs/runtime/API alignment | All prior contracts still hold | — |
 
 ---
 
@@ -271,6 +272,37 @@ always present. Observability is read-only — it does not affect which markets 
 
 ---
 
+### 3.14 Mapping Failure Semantics Scenarios (v0.5.14)
+
+These scenarios lock the contract that mapping failures (Gate 2) are distinct from
+discovery rejections (Gate 1) and registry duplicates (Gate 3), and that the
+three-gate pipeline invariant holds deterministically.
+
+**Three pipeline gates:**
+- Gate 1 (Discovery): `rejected_count` — markets that never become candidates
+- Gate 2 (Mapping): `skipped_mapping` — candidates that fail domain object creation
+- Gate 3 (Registry): `skipped_duplicate` — mapped Markets already in registry
+
+**Pipeline invariant:** `(fetched − skipped_mapping) × MARKETS_PER_CANDIDATE = mapped`
+**Partition invariant:** `mapped = written + skipped_duplicate`
+
+| ID | Pri | Introduced | Scenario | Expected Result | Automated Test |
+|----|-----|------------|----------|-----------------|----------------|
+| MFS-001 | P0 | v0.5.14 | Discovery-passing candidate with invalid domain fields (blank market_id, no event_id/slug) → mapping failure | `skipped_mapping=1`, `mapped=0`, `written=0` | `TestMappingFailureIncrementsSkippedMapping::test_successful_candidate_with_mapper_failure_increments_skipped_mapping` |
+| MFS-002 | P0 | v0.5.14 | Mapping failure must not write anything to registry | `len(registry)=0` after failed mapping | `TestMappingFailureIncrementsSkippedMapping::test_skipped_mapping_does_not_add_to_registry` |
+| MFS-003 | P1 | v0.5.14 | Multiple mapping failures accumulate | `skipped_mapping=N` for N bad candidates | `TestMappingFailureIncrementsSkippedMapping::test_multiple_mapping_failures_accumulate` |
+| MFS-004 | P0 | v0.5.14 | Discovery-rejected markets do not increment skipped_mapping | Gate 1 and Gate 2 counters are mutually exclusive | `TestSkippedMappingDistinctness::test_skipped_mapping_is_distinct_from_rejected_count_and_duplicate_count` |
+| MFS-005 | P0 | v0.5.14 | One candidate per gate in same payload → counters are mutually exclusive | `skipped_duplicate=2`, `skipped_mapping=1`, `rejected_count=0` | `TestSkippedMappingDistinctness::test_gate1_gate2_gate3_are_mutually_exclusive_counters` |
+| MFS-006 | P1 | v0.5.14 | `skipped_mapping` counts failed candidates, not zero-produced Market objects | 3 failed candidates → `skipped_mapping=3`, `mapped=0` (not 6) | `TestSkippedMappingDistinctness::test_skipped_mapping_counter_counts_candidates_not_market_objects` |
+| MFS-007 | P0 | v0.5.14 | `POST /sync` API response exposes `skipped_mapping_count` matching service layer | `skipped_mapping_count=0` when no failures; matches `SyncResult.skipped_mapping` | `test_sync_api_response_matches_service_mapping_failure_semantics` |
+| MFS-008 | P1 | v0.5.14 | `skipped_mapping_count` field is always present in SyncResponse JSON | Never missing from response shape | `test_sync_api_response_skipped_mapping_count_field_is_present` |
+| MFS-009 | P0 | v0.5.14 | Mixed payload: 1 success + 1 duplicate + 1 mapping failure → deterministic summary | `fetched=3`, `skipped_mapping=1`, `mapped=4`, `written=2`, `skipped_duplicate=2` | `TestMixedPayloadDeterminism::test_mixed_payload_with_success_duplicate_and_mapping_failure_produces_deterministic_summary` |
+| MFS-010 | P1 | v0.5.14 | All candidates fail mapping → pipeline invariant holds with all-zero output | `mapped=0`, `written=0`, `skipped_duplicate=0`; invariant: `(N−N)×2=0` | `TestMixedPayloadDeterminism::test_pipeline_invariant_holds_for_all_mapping_failures` |
+| MFS-011 | P1 | v0.5.14 | All candidates succeed → `skipped_mapping=0`, `mapped = fetched × 2` | Pipeline invariant: `(N−0)×2=mapped` | `TestMixedPayloadDeterminism::test_pipeline_invariant_holds_for_all_successful` |
+| MFS-012 | P0 | v0.5.14 | Pipeline and partition invariants verified at both service layer and HTTP layer | Docs, runtime, and API agree on all mapping failure semantics | `test_docs_runtime_and_summary_contract_align_for_mapping_failure` |
+
+---
+
 ### 3.10 Retired / Deprecated Scenarios
 
 These scenarios **must not** be used as regression criteria. They described
@@ -308,7 +340,8 @@ behaviour that was intentionally removed.
 | Discover/Sync Contract Alignment | 10 | 10 | 0 | 0 |
 | Cross-Layer Field Semantics | 9 | 9 | 0 | 0 |
 | Mapper Multiplicity Contract | 14 | 14 | 0 | 0 |
-| **Total** | **168** | **168** | **0** | **0** |
+| Mapping Failure Semantics | 12 | 12 | 0 | 0 |
+| **Total** | **180** | **180** | **0** | **0** |
 
 ### Known automation gaps
 
@@ -363,7 +396,7 @@ Covers: FETCH-001/002, DISC-ACC-001/005, DISC-REJ-001/004/005/006/007/008/009/01
 python -m pytest backend/tests/ -v
 ```
 
-All 319 tests. Current runtime: ~0.9 seconds.
+All 331 tests. Current runtime: ~0.9 seconds.
 
 ### Full regression (run after major architecture changes)
 

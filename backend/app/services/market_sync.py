@@ -71,9 +71,13 @@ class SyncResult:
                          UP and one DOWN.  So: mapped = successful_candidates × 2.
                          Note: mapped counts Market objects, not candidates.
     written            — new Markets written to the registry in this call.
-    skipped_mapping    — candidates whose mapper() call returned [].
-    skipped_duplicate  — candidates whose registry key already existed
-                         (DuplicateMarketError → silently skipped).
+    skipped_mapping    — candidates accepted by discovery but whose mapper()
+                         call returned [] (domain object creation failed).
+                         These markets never reach the registry write stage.
+    skipped_duplicate  — candidates successfully mapped but whose registry key
+                         already existed (DuplicateMarketError → silently
+                         skipped).  The market was valid and mappable, but had
+                         been written on a prior sync.
     registry_total     — total number of entries in the registry AFTER this
                          sync call completes.  Includes all retained/stale
                          entries from prior syncs plus any newly written ones.
@@ -90,6 +94,38 @@ class SyncResult:
                          "missing_dates", "duration_out_of_range").
                          All five keys are always present (value may be 0).
                          Matches the format returned by POST /discover.
+
+    Three pipeline failure gates
+    ----------------------------
+    Markets that enter the pipeline can exit it at three distinct failure
+    points.  Each has its own counter and its own semantics:
+
+    Gate 1 — Discovery rejection (rejected_count):
+      Markets that failed DiscoveryService.evaluate() rules (inactive,
+      no order book, empty tokens, missing dates, duration out of range).
+      These never become candidates and never enter the map→write stage.
+      The candidate set is: (all_fetched) − rejected_count.
+
+    Gate 2 — Mapping failure (skipped_mapping):
+      Candidates that passed discovery but whose mapper() call returned []
+      (domain object creation failed, e.g. invalid market_id).
+      These were valid discovery-wise but could not be turned into domain
+      objects.  They never reach the registry write stage.
+      Note: skipped_mapping counts *candidates*, not Market objects.
+
+    Gate 3 — Registry duplicate (skipped_duplicate):
+      Candidates that were successfully mapped to domain Market objects but
+      whose registry key already existed (written on a prior sync).
+      DuplicateMarketError is silently swallowed; the entry is unchanged.
+      Note: skipped_duplicate counts *Market objects*, not candidates.
+      Because each candidate maps to 2 objects (UP + DOWN), a single
+      duplicate candidate contributes 2 to skipped_duplicate.
+
+    Invariants across the three gates:
+      fetched = (candidates that entered map stage)
+              = all_fetched − rejected_count
+      mapped  = written + skipped_duplicate   (mapped Market objects)
+      fetched − skipped_mapping = mapped / MARKETS_PER_CANDIDATE
 
     What the summary does NOT tell you
     -----------------------------------
