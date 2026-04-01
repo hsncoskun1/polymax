@@ -20,13 +20,15 @@ def _make_client(return_value: list[dict]) -> MagicMock:
 
 
 def _raw_market(**overrides) -> dict:
-    """Minimal valid Gamma API market record."""
+    """Minimal valid Gamma API market record (passes _is_5m_candidate by default)."""
     base = {
         "id": "market-1",
         "question": "Will BTC hit 100k?",
         "slug": "btc-100k",
         "active": True,
         "closed": False,
+        "enableOrderBook": True,
+        "tokens": [{"outcome": "YES", "price": "0.6"}, {"outcome": "NO", "price": "0.4"}],
         "startDate": "2024-01-01T00:00:00Z",
         "events": [{"id": "event-1", "title": "BTC milestone"}],
     }
@@ -159,21 +161,71 @@ class TestNormalization:
 
 
 class TestFetchCandidates:
-    def test_passes_active_non_closed(self):
-        raw = _raw_market(active=True, closed=False)
-        client = _make_client([raw])
-        result = PolymarketFetchService(client).fetch_candidates()
+    # ── passes ────────────────────────────────────────────────────────────────
+
+    def test_passes_fully_valid_candidate(self):
+        raw = _raw_market(active=True, closed=False, enableOrderBook=True,
+                          tokens=[{"outcome": "YES"}, {"outcome": "NO"}])
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
         assert len(result) == 1
 
-    def test_filters_out_inactive(self):
+    # ── active / closed ───────────────────────────────────────────────────────
+
+    def test_filters_out_inactive_market(self):
+        raw = _raw_market(active=False)
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    def test_filters_out_closed_market(self):
+        raw = _raw_market(closed=True)
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    # ── enableOrderBook ───────────────────────────────────────────────────────
+
+    def test_filters_out_amm_only_market(self):
+        """Markets without an order book lack intra-minute price resolution."""
+        raw = _raw_market(enableOrderBook=False)
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    def test_filters_out_missing_enable_order_book_field(self):
+        raw = _raw_market()
+        del raw["enableOrderBook"]
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    # ── tokens ────────────────────────────────────────────────────────────────
+
+    def test_filters_out_empty_tokens_list(self):
+        raw = _raw_market(tokens=[])
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    def test_filters_out_missing_tokens_field(self):
+        raw = _raw_market()
+        del raw["tokens"]
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    def test_filters_out_non_list_tokens(self):
+        raw = _raw_market(tokens=None)
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    # ── mixed batch ───────────────────────────────────────────────────────────
+
+    def test_passes_only_fully_qualifying_records(self):
         records = [
-            _raw_market(id="a", active=False, closed=False),
-            _raw_market(id="b", active=True, closed=True),
-            _raw_market(id="c", active=True, closed=False),
+            _raw_market(id="ok",     active=True,  closed=False, enableOrderBook=True,  tokens=[{"outcome": "YES"}]),
+            _raw_market(id="no-ob",  active=True,  closed=False, enableOrderBook=False, tokens=[{"outcome": "YES"}]),
+            _raw_market(id="no-tok", active=True,  closed=False, enableOrderBook=True,  tokens=[]),
+            _raw_market(id="closed", active=True,  closed=True,  enableOrderBook=True,  tokens=[{"outcome": "YES"}]),
+            _raw_market(id="inact",  active=False, closed=False, enableOrderBook=True,  tokens=[{"outcome": "YES"}]),
         ]
         result = PolymarketFetchService(_make_client(records)).fetch_candidates()
         assert len(result) == 1
-        assert result[0].market_id == "c"
+        assert result[0].market_id == "ok"
 
     def test_returns_empty_when_all_filtered(self):
         records = [_raw_market(active=False, closed=True)]

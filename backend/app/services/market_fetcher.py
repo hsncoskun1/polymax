@@ -129,9 +129,38 @@ class PolymarketFetchService:
 
     @staticmethod
     def _is_5m_candidate(raw: dict) -> bool:
-        """Placeholder: gate for markets suitable for 5-minute timeframe tracking.
+        """Gate for markets considered suitable for 5-minute timeframe tracking.
 
-        Currently passes active, non-closed markets.
-        Future: narrow by tags, question patterns, or token characteristics.
+        Current checks (conservative, based on reliable Gamma API fields):
+
+        1. active=True, closed=False  — market is live and tradeable.
+        2. enableOrderBook=True       — CLOB order book present; indicates live
+                                        bid/ask flow appropriate for 5m tracking.
+                                        AMM-only markets (enableOrderBook=False)
+                                        lack intra-minute price resolution.
+        3. tokens list non-empty      — confirms binary YES/NO market structure;
+                                        markets with no tokens are malformed or
+                                        not yet initialised.
+
+        Deliberately NOT checked here:
+        - Coin/symbol identification (question pattern matching) — discovery
+          logic; out of scope for this step.
+        - volume24hr threshold — field absent on some records; skipped for now.
+        - Market duration / endDate proximity — out of scope for this step.
+
+        Known limitations / false-positive risk:
+        - CLOB markets with negligible liquidity will pass through; a volume
+          threshold would reduce noise but requires reliable volume data.
+        - Non-crypto CLOB markets (e.g. politics, sports) pass because asset
+          classification is not yet implemented.
         """
-        return bool(raw.get("active", False)) and not bool(raw.get("closed", False))
+        if not bool(raw.get("active", False)):
+            return False
+        if bool(raw.get("closed", False)):
+            return False
+        if not bool(raw.get("enableOrderBook", False)):
+            return False
+        tokens = raw.get("tokens")
+        if not isinstance(tokens, list) or len(tokens) == 0:
+            return False
+        return True
