@@ -6,6 +6,28 @@ Does NOT run on a schedule.  The caller decides when to invoke run().
 Candidate selection is delegated entirely to DiscoveryService — the single
 authoritative source of selection rules.  MarketSyncService itself applies
 no additional filtering.
+
+Registry lifecycle model (v0.5.7 decision)
+------------------------------------------
+MarketSyncService currently uses **add-only / retained** semantics:
+
+  - Once a market is written to the registry it is never removed, deactivated,
+    or archived by sync.  It persists regardless of what happens to the market
+    on subsequent syncs.
+  - If a market was valid at T0 and invalid at T1, the registry entry written
+    at T0 stays ACTIVE.  MarketSyncService has no knowledge of it.
+  - Duplicate writes (same market_id on a later sync) are silently skipped
+    (DuplicateMarketError → skipped_duplicate counter).
+
+This is a **deliberate deferred decision**, not an oversight:
+  The infrastructure for lifecycle transitions exists (MarketStatus.INACTIVE /
+  ARCHIVED, registry.deactivate(), registry.archive()) but driving those
+  transitions from the sync layer requires a "previous state vs. new candidate
+  set" comparison that is not yet implemented.  The risk is that the registry
+  may accumulate stale entries over time, which is acceptable until a
+  scheduler / persistence layer is introduced.
+
+  Future milestone: Registry Lifecycle Handling (cleanup / stale detection).
 """
 from __future__ import annotations
 

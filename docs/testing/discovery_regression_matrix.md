@@ -3,7 +3,7 @@
 **Living document — update with every version that changes behaviour in the
 fetch → discovery → sync → API chain.**
 
-Last updated: v0.5.6 (2026-04-01) · Total automated tests: **234**
+Last updated: v0.5.7 (2026-04-01) · Total automated tests: **245**
 
 ---
 
@@ -59,6 +59,7 @@ automated test suite — each scenario maps to one or more pytest tests.
 | v0.5.5a | Duration semantics locked — total duration not remaining time | Near-expiry valid markets always pass discovery | Duration uses `end_date − source_timestamp` | — |
 | v0.5.5b | Duration source semantics locked — `source_timestamp` confirmed as event start time (`startDate`) | Semantic chain `startDate → source_timestamp → duration` is test-locked | Domain model comment corrected from "freshness from upstream" to "event start time" | — |
 | v0.5.6 | Sync / Registry Behavior Lock — 5 registry contracts (C1–C5) + Scenario G (previously-valid market handling) + API summary integrity | Registry key format, add-only semantics, no-update-on-resync, C4 per-reason guards, mixed-payload determinism, registry stays after invalid transition, POST /sync response matches registry state | All prior sync + discovery contracts still hold | — |
+| v0.5.7 | Registry Lifecycle Semantics Lock — add-only/retained model documented as deliberate deferred decision; 11 new tests; market_sync.py lifecycle docstring added | Lifecycle decision: C (deferred); 4 rejection-reason lifecycle tests (A), closed/inactive explicit tests (B/C), sync summary gap documented (D), mixed lifecycle payload determinism (E) | All prior contracts still hold; stale entry behavior now explicit | — |
 
 ---
 
@@ -266,7 +267,8 @@ behaviour that was intentionally removed.
 | API Response | 11 | 11 | 0 | 0 |
 | Edge Cases | 7 | 7 | 0 | 0 |
 | Sync Registry Behavior | 10 | 10 | 0 | 0 |
-| **Total** | **83** | **83** | **0** | **0** |
+| Registry Lifecycle | 11 | 11 | 0 | 0 |
+| **Total** | **94** | **94** | **0** | **0** |
 
 ### Known automation gaps
 
@@ -321,7 +323,7 @@ Covers: FETCH-001/002, DISC-ACC-001/005, DISC-REJ-001/004/005/006/007/008/009/01
 python -m pytest backend/tests/ -v
 ```
 
-All 234 tests. Current runtime: ~0.8 seconds.
+All 245 tests. Current runtime: ~0.7 seconds.
 
 ### Full regression (run after major architecture changes)
 
