@@ -2,6 +2,7 @@ from fastapi import Depends
 
 from backend.app.domain.market.registry import InMemoryMarketRegistry
 from backend.app.integrations.polymarket.client import PolymarketClient
+from backend.app.services.market_discovery import DiscoveryService
 from backend.app.services.market_fetcher import PolymarketFetchService
 from backend.app.services.market_sync import MarketSyncService
 
@@ -25,3 +26,15 @@ def get_sync_service(
     client = PolymarketClient()
     fetcher = PolymarketFetchService(client)
     return MarketSyncService(fetcher, registry)
+
+
+def get_discovery_service() -> tuple[PolymarketFetchService, DiscoveryService]:
+    """Return a (fetcher, discovery) pair for the discover endpoint.
+
+    DiscoveryService is stateless — a new instance per request is fine.
+    No registry interaction; read-only.
+    """
+    client = PolymarketClient()
+    fetcher = PolymarketFetchService(client)
+    discovery = DiscoveryService()
+    return fetcher, discovery

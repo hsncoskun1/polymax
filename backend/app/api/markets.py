@@ -14,8 +14,10 @@ from backend.app.integrations.polymarket.exceptions import (
     PolymarketError,
     PolymarketTimeoutError,
 )
+from backend.app.services.market_discovery import DiscoveryService, RejectionReason
+from backend.app.services.market_fetcher import PolymarketFetchService
 from backend.app.services.market_sync import MarketSyncService
-from .deps import get_registry, get_sync_service
+from .deps import get_discovery_service, get_registry, get_sync_service
 
 router = APIRouter(prefix="/api/v1/markets", tags=["markets"])
 
@@ -57,6 +59,18 @@ class SyncResponse(BaseModel):
     skipped_duplicate_count: int
 
 
+class DiscoveryResponse(BaseModel):
+    """Summary of a single manual discovery run.
+
+    Fetch → evaluate only — no registry writes, no side effects.
+    """
+
+    fetched_count: int
+    candidate_count: int
+    rejected_count: int
+    rejection_breakdown: dict[str, int]
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/sync", response_model=SyncResponse)
@@ -83,6 +97,35 @@ def trigger_sync(service: MarketSyncService = Depends(get_sync_service)):
         written_count=result.written,
         skipped_mapping_count=result.skipped_mapping,
         skipped_duplicate_count=result.skipped_duplicate,
+    )
+
+
+@router.post("/discover", response_model=DiscoveryResponse)
+def trigger_discover(
+    pair: tuple[PolymarketFetchService, DiscoveryService] = Depends(get_discovery_service),
+):
+    """Manually trigger a fetch → candidate selection pass.
+
+    Fetches all available markets from Polymarket, evaluates each against
+    the discovery rules, and returns a breakdown of candidates vs rejected.
+
+    Does NOT write to the registry.  Safe to call at any time.
+    """
+    fetcher, discovery = pair
+    try:
+        markets = fetcher.fetch_markets()
+    except PolymarketTimeoutError:
+        raise HTTPException(status_code=504, detail="Polymarket API timed out")
+    except PolymarketError as exc:
+        raise HTTPException(status_code=502, detail=f"Polymarket upstream error: {exc}")
+
+    result = discovery.evaluate(markets)
+
+    return DiscoveryResponse(
+        fetched_count=result.fetched_count,
+        candidate_count=result.candidate_count,
+        rejected_count=result.rejected_count,
+        rejection_breakdown={r.value: count for r, count in result.rejection_breakdown.items()},
     )
 
 
