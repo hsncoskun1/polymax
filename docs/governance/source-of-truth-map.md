@@ -100,6 +100,22 @@ kept in sync manually. Backend is authoritative; frontend is a mirror.
 
 **Vite config known drift:** `frontend/vite.config.ts` hardcodes `port: 5173` and `host: "127.0.0.1"`. Vite is a Node.js tool that cannot read `config/default.toml` without a new build dependency. The hardcoded values match config defaults. If the frontend port is changed in config, `vite.config.ts` must be updated manually — this is a documented LOW NON-BLOCKER.
 
+## Startup paths
+
+| Startup path | Config-driven | Backend host/port source | Frontend port source | Notes |
+|---|---|---|---|---|
+| `python launcher/main.py` | ✅ | `config/default.toml [backend]` | `frontend/vite.config.ts` (hardcoded) | **Recommended path** — polls readiness, opens browser |
+| `python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000` | ❌ | CLI args (hardcoded, match config defaults) | N/A | Isolated backend dev/debug only |
+| `cd frontend && npm run dev` | ❌ | N/A | `frontend/vite.config.ts` (hardcoded 5173) | Isolated frontend dev/debug only |
+
+**Launcher is the authoritative startup path.** It is the only path that reads `config/default.toml` for host/port and coordinates both services.
+
+**Launcher ↔ Vite coupling:** Launcher polls frontend readiness at `http://{FRONTEND_HOST}:{FRONTEND_PORT}/` where those values come from `config/default.toml`. Vite runs on the port defined in `frontend/vite.config.ts` (hardcoded). These two ports MUST agree. If `[frontend] port` is changed in `config/default.toml` without updating `vite.config.ts`, the launcher will poll the wrong port and never detect frontend as ready. This is a LOW NON-BLOCKER documented across both files.
+
+**Manual startup values:** The hardcoded CLI args (`127.0.0.1:8000`) in README and `frontend/vite.config.ts` (`127.0.0.1:5173`) intentionally match `config/default.toml` defaults. They are not config-driven — if config changes, all three must be updated manually.
+
+---
+
 ## Gamma API integration
 
 | Information | Authoritative source |

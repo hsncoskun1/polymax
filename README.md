@@ -4,20 +4,24 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 
 ## Quick Start
 
-### Launch Everything
+### Recommended — Launch Everything
 ```bash
 python launcher/main.py
 ```
 Starts backend + frontend, waits for readiness, opens browser. Ctrl+C to stop.
+Reads host/port from `config/default.toml` — the single authoritative startup path.
 
-### Individual Services
+### Individual Services (isolated development / debugging only)
 ```bash
-# Backend only
+# Backend only — hardcoded values; match config/default.toml defaults
 python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 
-# Frontend only
+# Frontend only — port comes from frontend/vite.config.ts (hardcoded 5173)
 cd frontend && npm run dev
 ```
+> **Note:** Individual service commands use hardcoded values. If you change host/port in
+> `config/default.toml`, you must also update these commands and `frontend/vite.config.ts`
+> manually — they are not config-driven.
 
 ### Run Tests
 ```bash
