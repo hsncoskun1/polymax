@@ -73,6 +73,7 @@ class MarketMapper:
                     side=Side.UP,
                     timeframe=Timeframe.M5,
                     source_timestamp=fetched.source_timestamp,
+                    end_date=fetched.end_date,
                 ),
                 create_market(
                     id=f"{fetched.market_id}-down",
@@ -81,6 +82,7 @@ class MarketMapper:
                     side=Side.DOWN,
                     timeframe=Timeframe.M5,
                     source_timestamp=fetched.source_timestamp,
+                    end_date=fetched.end_date,
                 ),
             ]
         except Exception:

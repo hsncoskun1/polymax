@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, timezone
 from pydantic import ValidationError
 
 from backend.app.domain.market.models import Market, create_market
@@ -139,3 +140,31 @@ def test_registry_len():
     assert len(reg) == 0
     reg.add(make_market("x"))
     assert len(reg) == 1
+
+
+# ── end_date ──────────────────────────────────────────────────────────────────
+
+def test_end_date_defaults_to_none():
+    m = make_market()
+    assert m.end_date is None
+
+
+def test_end_date_can_be_set():
+    ts = datetime(2024, 1, 1, 0, 5, 0, tzinfo=timezone.utc)
+    m = create_market(id="m1", event_id="e1", symbol="BTC", side=Side.UP, end_date=ts)
+    assert m.end_date == ts
+
+
+def test_end_date_preserved_in_registry():
+    ts = datetime(2024, 6, 15, 12, 35, 0, tzinfo=timezone.utc)
+    m = create_market(id="m1", event_id="e1", symbol="ETH", side=Side.DOWN, end_date=ts)
+    reg = InMemoryMarketRegistry()
+    reg.add(m)
+    assert reg.get("m1").end_date == ts
+
+
+def test_end_date_none_preserved_in_registry():
+    m = create_market(id="m1", event_id="e1", symbol="SOL", side=Side.UP)
+    reg = InMemoryMarketRegistry()
+    reg.add(m)
+    assert reg.get("m1").end_date is None

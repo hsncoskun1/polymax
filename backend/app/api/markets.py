@@ -31,6 +31,7 @@ class CreateMarketRequest(BaseModel):
     side: Side
     timeframe: Timeframe = Timeframe.M5
     source_timestamp: datetime | None = None
+    end_date: datetime | None = None
 
 
 class UpdateStatusRequest(BaseModel):
@@ -45,6 +46,7 @@ class MarketResponse(BaseModel):
     side: Side
     status: MarketStatus
     source_timestamp: datetime | None
+    end_date: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -160,6 +162,7 @@ def create_market_endpoint(
             side=body.side,
             timeframe=body.timeframe,
             source_timestamp=body.source_timestamp,
+            end_date=body.end_date,
         )
         reg.add(market)
         return market

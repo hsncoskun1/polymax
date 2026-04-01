@@ -122,6 +122,17 @@ class TestMarketMapper:
         markets = mapper.map(_fetched(source_timestamp=ts))
         assert all(m.source_timestamp == ts for m in markets)
 
+    def test_end_date_is_forwarded(self):
+        end = datetime(2024, 1, 1, 0, 5, 0, tzinfo=timezone.utc)
+        mapper = MarketMapper()
+        markets = mapper.map(_fetched(end_date=end))
+        assert all(m.end_date == end for m in markets)
+
+    def test_end_date_none_is_forwarded(self):
+        mapper = MarketMapper()
+        markets = mapper.map(_fetched(end_date=None))
+        assert all(m.end_date is None for m in markets)
+
     def test_returns_empty_on_mapping_failure(self):
         # Inject a FetchedMarket-like object with an invalid market_id to
         # trigger a domain validation error inside the mapper.
