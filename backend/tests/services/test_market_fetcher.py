@@ -5,7 +5,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from backend.app.integrations.polymarket.exceptions import PolymarketTimeoutError
-from backend.app.services.market_fetcher import FetchedMarket, PolymarketFetchService
+from backend.app.services.market_fetcher import (
+    CANDIDATE_DURATION_MAX_SECONDS,
+    CANDIDATE_DURATION_MIN_SECONDS,
+    FetchedMarket,
+    PolymarketFetchService,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -20,7 +25,10 @@ def _make_client(return_value: list[dict]) -> MagicMock:
 
 
 def _raw_market(**overrides) -> dict:
-    """Minimal valid Gamma API market record (passes _is_5m_candidate by default)."""
+    """Minimal valid Gamma API market record (passes _is_5m_candidate by default).
+
+    startDate and endDate are exactly 300 seconds apart (valid 5m window).
+    """
     base = {
         "id": "market-1",
         "question": "Will BTC hit 100k?",
@@ -30,10 +38,23 @@ def _raw_market(**overrides) -> dict:
         "enableOrderBook": True,
         "tokens": [{"outcome": "YES", "price": "0.6"}, {"outcome": "NO", "price": "0.4"}],
         "startDate": "2024-01-01T00:00:00Z",
+        "endDate":   "2024-01-01T00:05:00Z",   # exactly 300 s after startDate
         "events": [{"id": "event-1", "title": "BTC milestone"}],
     }
     base.update(overrides)
     return base
+
+
+def _market_with_duration(seconds: int, **overrides) -> dict:
+    """Helper: _raw_market with endDate set to startDate + `seconds`."""
+    from datetime import timedelta
+    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    end = start + timedelta(seconds=seconds)
+    return _raw_market(
+        startDate=start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        endDate=end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        **overrides,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +175,25 @@ class TestNormalization:
         result = service.fetch_markets()
         assert result[0].question == ""
 
+    def test_parses_end_date(self):
+        raw = _raw_market(endDate="2024-06-15T12:35:00Z")
+        service = PolymarketFetchService(_make_client([raw]))
+        result = service.fetch_markets()
+        assert result[0].end_date == datetime(2024, 6, 15, 12, 35, 0, tzinfo=timezone.utc)
+
+    def test_end_date_none_when_absent(self):
+        raw = _raw_market()
+        del raw["endDate"]
+        service = PolymarketFetchService(_make_client([raw]))
+        result = service.fetch_markets()
+        assert result[0].end_date is None
+
+    def test_end_date_none_on_unparseable_date(self):
+        raw = _raw_market(endDate="not-a-date")
+        service = PolymarketFetchService(_make_client([raw]))
+        result = service.fetch_markets()
+        assert result[0].end_date is None
+
 
 # ---------------------------------------------------------------------------
 # fetch_candidates (5m filter placeholder)
@@ -231,3 +271,89 @@ class TestFetchCandidates:
         records = [_raw_market(active=False, closed=True)]
         result = PolymarketFetchService(_make_client(records)).fetch_candidates()
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Duration filter (5m window: CANDIDATE_DURATION_MIN_SECONDS–MAX_SECONDS)
+# ---------------------------------------------------------------------------
+
+
+class TestDurationFilter:
+    """_is_5m_candidate duration gate — tests use _market_with_duration()."""
+
+    # ── passes ───────────────────────────────────────────────────────────────
+
+    def test_passes_exact_5m(self):
+        raw = _market_with_duration(300)
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert len(result) == 1
+
+    def test_passes_lower_boundary(self):
+        raw = _market_with_duration(CANDIDATE_DURATION_MIN_SECONDS)  # 240 s
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert len(result) == 1
+
+    def test_passes_upper_boundary(self):
+        raw = _market_with_duration(CANDIDATE_DURATION_MAX_SECONDS)  # 360 s
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert len(result) == 1
+
+    # ── rejects ──────────────────────────────────────────────────────────────
+
+    def test_filters_out_duration_below_lower_boundary(self):
+        raw = _market_with_duration(CANDIDATE_DURATION_MIN_SECONDS - 1)  # 239 s
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    def test_filters_out_duration_above_upper_boundary(self):
+        raw = _market_with_duration(CANDIDATE_DURATION_MAX_SECONDS + 1)  # 361 s
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    def test_filters_out_very_short_duration(self):
+        raw = _market_with_duration(60)  # 1 minute — too short
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    def test_filters_out_long_duration(self):
+        raw = _market_with_duration(3600)  # 1 hour
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    def test_filters_out_day_long_duration(self):
+        raw = _market_with_duration(86400)  # 24 hours
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    # ── missing / invalid dates ───────────────────────────────────────────────
+
+    def test_filters_out_missing_end_date(self):
+        raw = _raw_market()
+        del raw["endDate"]
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    def test_filters_out_missing_start_date(self):
+        raw = _raw_market()
+        del raw["startDate"]
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    def test_filters_out_unparseable_end_date(self):
+        raw = _raw_market(endDate="garbage")
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    def test_filters_out_unparseable_start_date(self):
+        raw = _raw_market(startDate="garbage")
+        result = PolymarketFetchService(_make_client([raw])).fetch_candidates()
+        assert result == []
+
+    # ── fetch_markets unaffected ──────────────────────────────────────────────
+
+    def test_fetch_markets_returns_record_regardless_of_duration(self):
+        """fetch_markets() must not apply the duration gate."""
+        raw = _market_with_duration(86400)  # 24 hours — would fail candidate filter
+        result = PolymarketFetchService(_make_client([raw])).fetch_markets()
+        assert len(result) == 1
+        assert result[0].end_date is not None  # end_date is parsed and stored

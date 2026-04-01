@@ -23,6 +23,7 @@ def _fetched(
     active: bool = True,
     closed: bool = False,
     source_timestamp: datetime | None = None,
+    end_date: datetime | None = None,
 ) -> FetchedMarket:
     return FetchedMarket(
         market_id=market_id,
@@ -32,6 +33,7 @@ def _fetched(
         active=active,
         closed=closed,
         source_timestamp=source_timestamp,
+        end_date=end_date,
     )
 
 
@@ -101,6 +103,7 @@ class TestMarketMapper:
             active=True,
             closed=False,
             source_timestamp=None,
+            end_date=None,
         )
         # market_id "   ".strip() == "" — create_market will raise ValueError
         mapper = MarketMapper()
@@ -174,6 +177,7 @@ class TestMarketSyncService:
             active=True,
             closed=False,
             source_timestamp=None,
+            end_date=None,
         )
         registry = InMemoryMarketRegistry()
         fetcher = _mock_fetcher([bad, _fetched("good-1")])
