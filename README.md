@@ -26,6 +26,9 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.3.8 5m duration filter (endDate-based candidate gate, [240-360] s window) — complete
 - v0.3.9 Symbol extraction shell (question/slug → BTC/ETH/SOL via regex + keyword catalogue) — complete
 
+### Discovery (v0.4.x)
+- v0.4.1 Discovery shell (DiscoveryService, RejectionReason, candidate selection with reason breakdown) — complete
+
 ## Quick Start
 
 ### Launch Everything
