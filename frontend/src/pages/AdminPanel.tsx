@@ -1,3 +1,4 @@
+import DiscoverAction from "../components/DiscoverAction";
 import SyncAction from "../components/SyncAction";
 
 interface AdminPanelProps {
@@ -13,6 +14,7 @@ export default function AdminPanel({ onSyncDone }: AdminPanelProps) {
         <StatusChip label="Frontend" value="v0.1.0" />
         <StatusChip label="Uptime" value="—" />
       </div>
+      <DiscoverAction />
       <SyncAction onSuccess={onSyncDone} />
     </div>
   );
