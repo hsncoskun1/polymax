@@ -35,6 +35,7 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.5.1 Market domain end_date (end_date field on Market model, mapper propagation) — complete
 - v0.5.2 Discovery-sync integration (DiscoveryService single candidate source in MarketSyncService) — complete
 - v0.5.3 Discovery input quality tightening (enable_order_book + tokens fields on FetchedMarket; NO_ORDER_BOOK + EMPTY_TOKENS rejection reasons in DiscoveryService) — complete
+- v0.5.4 Discovery single-entry cleanup (removed fetch_candidates + _is_5m_candidate dead code; PolymarketFetchService is now a pure normalisation layer) — complete
 
 ## Quick Start
 
