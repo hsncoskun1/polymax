@@ -3,7 +3,7 @@
 **Living document — update with every version that changes behaviour in the
 fetch → discovery → sync → API chain.**
 
-Last updated: v0.5.15 (2026-04-01) · Total automated tests: **347**
+Last updated: v0.5.16 (2026-04-01) · Total automated tests: **381**
 
 ---
 
@@ -68,6 +68,7 @@ automated test suite — each scenario maps to one or more pytest tests.
 | v0.5.13 | Mapper Multiplicity Contract Lock — MarketMapper docstring expanded with explicit multiplicity contract; MARKETS_PER_CANDIDATE=2 constant added; SyncResult.mapped docstring clarified; 14 new multiplicity tests | exact-two canonical contract; mapped counts Market objects not candidates; written+skipped_duplicate=mapped partition; -up/-down identity stable; docs/runtime/summary alignment | All prior contracts still hold | — |
 | v0.5.14 | Mapping Failure Semantics Lock — SyncResult docstring extended with three-pipeline-gate section (Gate 1: discovery rejection, Gate 2: mapping failure, Gate 3: registry duplicate); pipeline invariant documented; 12 new mapping failure semantics tests | Gate 2 (skipped_mapping) is distinct from Gate 1 (rejected_count) and Gate 3 (skipped_duplicate); skipped_mapping counts candidates not Market objects; mapping failure does not write to registry; pipeline invariant: (fetched−skipped_mapping)×2=mapped; docs/runtime/API alignment | All prior contracts still hold | — |
 | v0.5.15 | Pipeline Edge-State Contract Lock — SyncResult docstring extended with edge-state reference table (5 canonical states: empty/all-rejected/all-map-failed/all-duplicate/all-new-valid); Status A: no production changes needed; 16 new edge-state contract tests (A–F) | empty cross-layer invariant locked; all-rejected cross-layer partition locked; all-map-failed service/invariant locked; all-duplicate partition/registry locked; all-new-valid candidate-alignment locked; cross-layer invariants (candidate_count==fetched_count; discover.fetched==sync.fetched+sync.rejected) tested for all edge states | All prior contracts still hold | — |
+| v0.5.16 | Fetcher Input Normalization Contract Lock — _normalize() docstring extended with field normalization policy table; Status A: normalization already consistent; 34 new boundary-case normalization tests (A–F) | question None/absent/''→''; slug falsy→None; market_id blank→skip; datetime absent/invalid→None; active/closed absent→False; enable_order_book absent→None (conservative, not False); tokens non-list→None (conservative, not []); event_id extracted from first events dict; normalization never filters candidates | All prior contracts still hold | — |
 
 ---
 
@@ -379,7 +380,8 @@ behaviour that was intentionally removed.
 | Mapper Multiplicity Contract | 14 | 14 | 0 | 0 |
 | Mapping Failure Semantics | 12 | 12 | 0 | 0 |
 | Pipeline Edge-State Contract | 16 | 16 | 0 | 0 |
-| **Total** | **196** | **196** | **0** | **0** |
+| Fetcher Input Normalization Contract | 34 | 34 | 0 | 0 |
+| **Total** | **230** | **230** | **0** | **0** |
 
 ### Known automation gaps
 
@@ -434,7 +436,7 @@ Covers: FETCH-001/002, DISC-ACC-001/005, DISC-REJ-001/004/005/006/007/008/009/01
 python -m pytest backend/tests/ -v
 ```
 
-All 347 tests. Current runtime: ~0.9 seconds.
+All 381 tests. Current runtime: ~1.0 seconds.
 
 ### Full regression (run after major architecture changes)
 

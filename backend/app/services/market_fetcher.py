@@ -97,6 +97,41 @@ class PolymarketFetchService:
         """Map one raw Gamma API dict to a FetchedMarket.
 
         Returns None and emits a warning when the required *id* field is absent.
+
+        Field normalization policy table
+        ---------------------------------
+        Raw field       Raw variants handled         Normalized value
+        ─────────────  ──────────────────────────   ─────────────────────────
+        id             absent/None/non-str/blank     → skip record (return None)
+                       any string after strip        → market_id (stripped)
+        question       absent/None/falsy             → "" (empty string; never None)
+                       non-empty string              → as-is
+        slug           absent/None/falsy/""          → None
+                       non-empty string              → as-is (incl. whitespace-only
+                                                       strings — callers must tolerate)
+        active         absent                        → False (default)
+                       any value                     → bool() coercion
+        closed         absent                        → False (default)
+                       any value                     → bool() coercion
+        events         absent/None/non-list/empty    → event_id = None
+                       non-empty list of dicts       → event_id = first["id"] or None
+        startDate      absent/None/non-str/blank     → source_timestamp = None
+                       unparseable                   → None + warning
+                       valid ISO-8601                → tz-aware datetime
+        endDate        (same policy as startDate)    → end_date
+        enableOrderBook absent/None                  → None (conservative; discovery
+                                                       rejects None as NO_ORDER_BOOK)
+                       any non-None value            → bool() coercion
+        tokens         absent/None/non-list          → None (conservative; discovery
+                                                       rejects None as EMPTY_TOKENS)
+                       list (incl. empty [])         → list as-is
+
+        Downstream effects:
+          - question="" is safe: symbol extraction falls back to slug then market_id.
+          - slug whitespace-only: callers see truthy slug; mapper may raise ValueError.
+          - enable_order_book=None / tokens=None: discovery rejects via NO_ORDER_BOOK /
+            EMPTY_TOKENS; these records never become candidates.
+          - source_timestamp=None / end_date=None: discovery rejects via MISSING_DATES.
         """
         market_id = raw.get("id")
         if not isinstance(market_id, str) or not market_id.strip():
