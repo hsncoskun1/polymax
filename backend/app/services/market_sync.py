@@ -127,6 +127,31 @@ class SyncResult:
       mapped  = written + skipped_duplicate   (mapped Market objects)
       fetched − skipped_mapping = mapped / MARKETS_PER_CANDIDATE
 
+    Pipeline edge-state reference table
+    ------------------------------------
+    Deterministic behaviour for the five canonical edge inputs:
+
+    Edge state          discover semantics          sync semantics              Registry effect
+    ──────────────────  ──────────────────────────  ──────────────────────────  ───────────────
+    empty input         fetched=0, candidate=0,     fetched=0, mapped=0,        unchanged (0)
+                        rejected=0                  written=0, skipped_*=0
+    all-rejected        fetched=N, candidate=0,     fetched=0, mapped=0,        unchanged
+                        rejected=N                  written=0, rejected=N
+    all-mapping-failed  fetched=N, candidate=N,     fetched=N, skipped_          unchanged
+                        rejected=0                  mapping=N, mapped=0,
+                                                    written=0
+    all-duplicate       fetched=N, candidate=N,     fetched=N, mapped=2N,       unchanged
+                        rejected=0                  written=0, skipped_
+                                                    duplicate=2N
+    all-new-valid       fetched=N, candidate=N,     fetched=N, mapped=2N,       +2N entries
+                        rejected=0                  written=2N, skipped_*=0
+
+    Cross-layer alignment (holds for every edge state above):
+      discover.candidate_count  == sync.fetched_count
+      discover.fetched_count    == sync.fetched_count + sync.rejected_count
+      mapped = written + skipped_duplicate
+      (fetched − skipped_mapping) × MARKETS_PER_CANDIDATE = mapped
+
     What the summary does NOT tell you
     -----------------------------------
     - Raw count of markets fetched from the Polymarket API (only candidates

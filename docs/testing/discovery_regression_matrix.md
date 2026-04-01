@@ -3,7 +3,7 @@
 **Living document — update with every version that changes behaviour in the
 fetch → discovery → sync → API chain.**
 
-Last updated: v0.5.14 (2026-04-01) · Total automated tests: **331**
+Last updated: v0.5.15 (2026-04-01) · Total automated tests: **347**
 
 ---
 
@@ -67,6 +67,7 @@ automated test suite — each scenario maps to one or more pytest tests.
 | v0.5.12 | Cross-Layer Field Semantics Lock — SyncResult docstring extended with API field name mapping table; 9 new cross-layer field semantics tests | discover/sync field sets locked; SyncResult→SyncResponse _count suffix convention documented; raw/candidate/rejected partition naming consistent; registry_total semantically distinct from processing-window fields; docs/runtime alignment verified | All prior contracts still hold | — |
 | v0.5.13 | Mapper Multiplicity Contract Lock — MarketMapper docstring expanded with explicit multiplicity contract; MARKETS_PER_CANDIDATE=2 constant added; SyncResult.mapped docstring clarified; 14 new multiplicity tests | exact-two canonical contract; mapped counts Market objects not candidates; written+skipped_duplicate=mapped partition; -up/-down identity stable; docs/runtime/summary alignment | All prior contracts still hold | — |
 | v0.5.14 | Mapping Failure Semantics Lock — SyncResult docstring extended with three-pipeline-gate section (Gate 1: discovery rejection, Gate 2: mapping failure, Gate 3: registry duplicate); pipeline invariant documented; 12 new mapping failure semantics tests | Gate 2 (skipped_mapping) is distinct from Gate 1 (rejected_count) and Gate 3 (skipped_duplicate); skipped_mapping counts candidates not Market objects; mapping failure does not write to registry; pipeline invariant: (fetched−skipped_mapping)×2=mapped; docs/runtime/API alignment | All prior contracts still hold | — |
+| v0.5.15 | Pipeline Edge-State Contract Lock — SyncResult docstring extended with edge-state reference table (5 canonical states: empty/all-rejected/all-map-failed/all-duplicate/all-new-valid); Status A: no production changes needed; 16 new edge-state contract tests (A–F) | empty cross-layer invariant locked; all-rejected cross-layer partition locked; all-map-failed service/invariant locked; all-duplicate partition/registry locked; all-new-valid candidate-alignment locked; cross-layer invariants (candidate_count==fetched_count; discover.fetched==sync.fetched+sync.rejected) tested for all edge states | All prior contracts still hold | — |
 
 ---
 
@@ -303,6 +304,42 @@ three-gate pipeline invariant holds deterministically.
 
 ---
 
+### 3.15 Pipeline Edge-State Contract Scenarios (v0.5.15)
+
+These scenarios lock the deterministic, cross-layer-consistent behaviour of the five
+canonical edge states across the full fetch → discovery → map → registry pipeline.
+
+**Assessment**: Status A — edge state behaviour was already consistent end-to-end.
+No production changes were required; these tests codify and cross-layer-lock contracts
+that previously existed only as scattered unit/integration checks.
+
+**Cross-layer invariants (hold for every edge state):**
+- `discover.candidate_count == sync.fetched_count`
+- `discover.fetched_count == sync.fetched_count + sync.rejected_count`
+- `mapped = written + skipped_duplicate`
+- `(fetched − skipped_mapping) × MARKETS_PER_CANDIDATE = mapped`
+
+| ID | Pri | Introduced | Edge State | Scenario | Expected Result | Automated Test |
+|----|-----|------------|------------|----------|-----------------|----------------|
+| PES-001 | P0 | v0.5.15 | EMPTY | Empty input at service layer | All counters zero; all 5 taxonomy keys present; registry unchanged | `TestEmptyInputEdgeState::test_empty_input_sync_service_produces_all_zero_edge_state` |
+| PES-002 | P0 | v0.5.15 | EMPTY | Empty input at /discover HTTP layer | fetched=0, candidate=0, rejected=0, breakdown all-zero | `TestEmptyInputEdgeState::test_empty_input_discover_http_produces_all_zero_edge_state` |
+| PES-003 | P0 | v0.5.15 | EMPTY | Empty input cross-layer invariants | discover/sync aligned; partition trivially zero; taxonomy keys complete | `TestEmptyInputEdgeState::test_empty_input_cross_layer_invariants_hold` |
+| PES-004 | P0 | v0.5.15 | ALL-REJECTED | All markets rejected; service layer | rejected_count=N, fetched=0, written=0, registry empty | `TestAllRejectedEdgeState::test_all_rejected_sync_service_produces_rejection_only_edge_state` |
+| PES-005 | P1 | v0.5.15 | ALL-REJECTED | Registry stays empty after all-rejected sync | len(registry)==0 | `TestAllRejectedEdgeState::test_all_rejected_registry_stays_empty` |
+| PES-006 | P0 | v0.5.15 | ALL-REJECTED | Cross-layer partition invariant | discover.fetched == sync.fetched + sync.rejected; candidate_count==0 | `TestAllRejectedEdgeState::test_all_rejected_cross_layer_partition_invariant` |
+| PES-007 | P0 | v0.5.15 | ALL-MAP-FAILED | All map-fail candidates; service layer | skipped_mapping=N, mapped=0, written=0, rejected=0 | `TestAllMappingFailedEdgeState::test_all_mapping_failed_sync_service_produces_mapping_failure_only_edge_state` |
+| PES-008 | P1 | v0.5.15 | ALL-MAP-FAILED | Registry unchanged after all-mapping-failed | len(registry)==0 | `TestAllMappingFailedEdgeState::test_all_mapping_failed_registry_unchanged` |
+| PES-009 | P0 | v0.5.15 | ALL-MAP-FAILED | Cross-layer candidate alignment + pipeline invariant | discover.candidate_count == sync.fetched_count; (fetched−skipped_mapping)×2=mapped=0 | `TestAllMappingFailedEdgeState::test_all_mapping_failed_cross_layer_candidate_alignment` |
+| PES-010 | P0 | v0.5.15 | ALL-DUPLICATE | All-duplicate state; service layer | written=0, skipped_duplicate=2N, mapped=2N, fetched=N | `TestAllDuplicateEdgeState::test_all_duplicate_sync_service_produces_duplicate_only_edge_state` |
+| PES-011 | P1 | v0.5.15 | ALL-DUPLICATE | Registry count unchanged after all-duplicate sync | count unchanged | `TestAllDuplicateEdgeState::test_all_duplicate_registry_count_unchanged` |
+| PES-012 | P0 | v0.5.15 | ALL-DUPLICATE | Partition invariant for all-duplicate | mapped == written + skipped_duplicate; written==0 | `TestAllDuplicateEdgeState::test_all_duplicate_partition_invariant` |
+| PES-013 | P0 | v0.5.15 | ALL-NEW-VALID | Clean happy-path edge state; service layer | written=2N, all skip counters zero, registry=2N | `TestAllNewValidEdgeState::test_all_new_valid_sync_service_produces_clean_happy_path_edge_state` |
+| PES-014 | P0 | v0.5.15 | ALL-NEW-VALID | Cross-layer candidate alignment + all written | candidate_count==fetched_count; written==2N; no rejections | `TestAllNewValidEdgeState::test_all_new_valid_cross_layer_candidate_alignment` |
+| PES-015 | P1 | v0.5.15 | ALL-NEW-VALID | Rejection breakdown all-zero at both endpoints | All 5 taxonomy keys present; all zero | `TestAllNewValidEdgeState::test_all_new_valid_rejection_breakdown_all_zero` |
+| PES-016 | P0 | v0.5.15 | ALL STATES | Cross-layer invariants hold for empty/all-rejected/all-new-valid simultaneously | Invariants 1–3 + taxonomy completeness verified per edge state | `test_discover_and_sync_edge_states_remain_cross_layer_consistent` |
+
+---
+
 ### 3.10 Retired / Deprecated Scenarios
 
 These scenarios **must not** be used as regression criteria. They described
@@ -341,7 +378,8 @@ behaviour that was intentionally removed.
 | Cross-Layer Field Semantics | 9 | 9 | 0 | 0 |
 | Mapper Multiplicity Contract | 14 | 14 | 0 | 0 |
 | Mapping Failure Semantics | 12 | 12 | 0 | 0 |
-| **Total** | **180** | **180** | **0** | **0** |
+| Pipeline Edge-State Contract | 16 | 16 | 0 | 0 |
+| **Total** | **196** | **196** | **0** | **0** |
 
 ### Known automation gaps
 
@@ -396,7 +434,7 @@ Covers: FETCH-001/002, DISC-ACC-001/005, DISC-REJ-001/004/005/006/007/008/009/01
 python -m pytest backend/tests/ -v
 ```
 
-All 331 tests. Current runtime: ~0.9 seconds.
+All 347 tests. Current runtime: ~0.9 seconds.
 
 ### Full regression (run after major architecture changes)
 
