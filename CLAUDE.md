@@ -1,5 +1,9 @@
 # POLYMAX
 
+> **Repo governance rules** — branch naming, commit discipline, document placement,
+> source-of-truth map — are authoritative in `docs/governance/`.
+> This file covers Claude-specific operational context only.
+
 ## Project Rules
 
 - POLYMAX runs locally (launcher + localhost panel architecture)
@@ -7,9 +11,6 @@
 - Only approved small steps are implemented
 - No large-scope additions without explicit user approval
 - Every change requires test + report before it's considered complete
-- Test results are recorded in `test-results/`
-- Commits happen only after tests pass
-- Push is attempted after every commit; failures are reported with reason
 - No unnecessary technologies, dependencies, or abstractions
 - Large features progress in versioned steps with user approval at each step
 - Scope is never self-expanded; if unsure, ask
@@ -31,7 +32,8 @@ POLYMAX/
 ├── backend/     # Single source of truth for all data
 ├── frontend/    # Display only, no authoritative state
 ├── launcher/    # Application entry point
-└── test-results/  # Test reports
+├── docs/        # Governance, releases, testing contracts
+└── test-results/  # Test execution output
 ```
 
 ## Workflow
