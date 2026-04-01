@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import App from "../App";
@@ -75,6 +75,62 @@ describe("App routing", () => {
     renderWithRouter("/user");
     expect(screen.getByText("User")).toBeDefined();
     expect(screen.getByText("Admin")).toBeDefined();
+  });
+});
+
+// ── sync action tests ─────────────────────────────────────────────────────────
+
+const MOCK_SYNC_RESULT = {
+  fetched_count: 4,
+  mapped_count: 4,
+  written_count: 4,
+  skipped_mapping_count: 0,
+  skipped_duplicate_count: 0,
+};
+
+describe("SyncAction", () => {
+  it("renders Sync now button on admin panel", () => {
+    mockFetch([]);
+    renderWithRouter("/admin");
+    expect(screen.getByRole("button", { name: /sync now/i })).toBeDefined();
+  });
+
+  it("shows loading state while sync is in progress", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {}))); // never resolves
+    renderWithRouter("/admin");
+    fireEvent.click(screen.getByRole("button", { name: /sync now/i }));
+    expect(screen.getByRole("status", { name: /sync in progress/i })).toBeDefined();
+  });
+
+  it("renders sync summary on successful response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(MOCK_SYNC_RESULT),
+      })
+    );
+    renderWithRouter("/admin");
+    fireEvent.click(screen.getByRole("button", { name: /sync now/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: /sync result/i })).toBeDefined();
+    });
+    expect(screen.getByText("Written")).toBeDefined();
+    expect(screen.getByText("Fetched")).toBeDefined();
+  });
+
+  it("shows error message when sync request fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("Sync failed: 502"))
+    );
+    renderWithRouter("/admin");
+    fireEvent.click(screen.getByRole("button", { name: /sync now/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeDefined();
+    });
+    expect(screen.getByText(/sync failed/i)).toBeDefined();
   });
 });
 

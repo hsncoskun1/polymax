@@ -22,3 +22,17 @@ export async function fetchMarkets(): Promise<Market[]> {
   if (!resp.ok) throw new Error(`Backend error: ${resp.status}`);
   return resp.json();
 }
+
+export interface SyncResult {
+  fetched_count: number;
+  mapped_count: number;
+  written_count: number;
+  skipped_mapping_count: number;
+  skipped_duplicate_count: number;
+}
+
+export async function triggerSync(): Promise<SyncResult> {
+  const resp = await fetch(`${BASE_URL}/api/v1/markets/sync`, { method: "POST" });
+  if (!resp.ok) throw new Error(`Sync failed: ${resp.status}`);
+  return resp.json();
+}

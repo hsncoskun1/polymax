@@ -1,3 +1,5 @@
+import SyncAction from "../components/SyncAction";
+
 export default function AdminPanel() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -7,14 +9,7 @@ export default function AdminPanel() {
         <StatusChip label="Frontend" value="v0.1.0" />
         <StatusChip label="Uptime" value="—" />
       </div>
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-        <h3 className="font-semibold text-[var(--color-text)] mb-3">
-          System Overview
-        </h3>
-        <p className="text-sm text-[var(--color-text-muted)]">
-          Service monitoring and configuration will appear here.
-        </p>
-      </div>
+      <SyncAction />
     </div>
   );
 }
