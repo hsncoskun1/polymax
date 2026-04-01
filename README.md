@@ -33,6 +33,7 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 
 ### Market Model (v0.5.x)
 - v0.5.1 Market domain end_date (end_date field on Market model, mapper propagation) — complete
+- v0.5.2 Discovery-sync integration (DiscoveryService single candidate source in MarketSyncService) — complete
 
 ## Quick Start
 
