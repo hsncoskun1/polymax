@@ -3,7 +3,7 @@
 **Living document — update with every version that changes behaviour in the
 fetch → discovery → sync → API chain.**
 
-Last updated: v0.5.19 (2026-04-01) · Total automated tests: **454** (+ 1 live-skipped)
+Last updated: v0.5.20 (2026-04-01) · Total automated tests: **483** (+ 1 live-skipped)
 
 ---
 
@@ -71,6 +71,7 @@ automated test suite — each scenario maps to one or more pytest tests.
 | v0.5.16 | Fetcher Input Normalization Contract Lock — _normalize() docstring extended with field normalization policy table; Status A: normalization already consistent; 34 new boundary-case normalization tests (A–F) | question None/absent/''→''; slug falsy→None; market_id blank→skip; datetime absent/invalid→None; active/closed absent→False; enable_order_book absent→None (conservative, not False); tokens non-list→None (conservative, not []); event_id extracted from first events dict; normalization never filters candidates | All prior contracts still hold | — |
 | v0.5.17 | Canonical Text Field Normalization Lock — Status B: whitespace-only slug caused silent downstream mapping failure (truthy blank → symbol validation failure); minimal production fix: slug strip+None-ify whitespace-only; question strip whitespace; FetchedMarket docstring updated; v0.5.16 behavior test updated; 20 new canonical normalization tests (A–F) | slug whitespace-only→None; slug always None or stripped non-blank; question whitespace-only→''; question always stripped str; fix prevents mapper ValueError from whitespace slug; discovery outcome unchanged; mapper handles slug=None safely | All prior contracts still hold | whitespace-only slug as truthy value retired |
 | v0.5.18 | Live Gamma Contract Snapshot Lock — Approach A: committed fixture (gamma_snapshot.json, 10 records covering all discovery outcomes); conftest.py with live marker; 22 fixture-based contract tests (A–F) + 1 @pytest.mark.live test (skipped by default); fixture documents expected Gamma API schema | fixture schema contract (field presence/type); pipeline normalization on fixture; discovery candidate/rejection counts; sync deterministic summary; cross-layer invariants on fixture; @pytest.mark.live path for real API shape verification | All prior contracts still hold | — |
+| v0.5.20 | Drift Response Ownership Lock — Status A: technical process sufficient, operational ownership undefined; added docs/testing/gamma_drift_response_roles.md (6-question ownership doc: roles, drift response matrix, live test → action table, fixture refresh checklist, decision matrix, cross-references); 29 new ownership contract tests (A–E); 483 total tests; 333 regression scenarios | ownership docs cover all 6 ownership questions; expected/breaking drift each have explicit owner + escalation path; live test states map to role-specific actions; fixture refresh checklist documents review-before-commit gate; ownership doc consistent with workflow doc + helper; operator is final decision authority | All prior contracts still hold | — |
 | v0.5.19 | Upstream Drift Triage Workflow Lock — Status A: technical contracts sufficient, process contract missing; added tools/refresh_gamma_snapshot.py (manual CLI helper, REQUIRED_FIELDS/OPTIONAL_FIELDS constants, check_required_fields/check_optional_fields validation functions); added docs/testing/gamma_contract_workflow.md (6-question workflow doc: when/who/how to refresh, field sanitization, expected vs breaking drift classification, live test interpretation, fixture coverage requirements); 31 new drift triage workflow tests (A–E) | workflow docs cover all 6 required questions; expected vs breaking drift distinction explicit; helper script + docs reference same canonical fixture path; check_required_fields() fails loudly on missing shape; REQUIRED_FIELDS aligned with _normalize() runtime behaviour | All prior contracts still hold | Real Gamma API integration gap documented in gamma_contract_workflow.md |
 
 ---
@@ -440,7 +441,8 @@ behaviour that was intentionally removed.
 | Canonical Text Field Normalization | 20 | 20 | 0 | 0 |
 | Live Gamma Contract Snapshot | 23 | 22 | 0 | 1 live-skipped |
 | Upstream Drift Triage Workflow | 31 | 31 | 0 | 0 |
-| **Total** | **304** | **303** | **0** | **1 live-skipped** |
+| Drift Response Ownership | 29 | 29 | 0 | 0 |
+| **Total** | **333** | **332** | **0** | **1 live-skipped** |
 
 ### Known automation gaps
 
