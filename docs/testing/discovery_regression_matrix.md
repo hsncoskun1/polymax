@@ -3,7 +3,7 @@
 **Living document — update with every version that changes behaviour in the
 fetch → discovery → sync → API chain.**
 
-Last updated: v0.5.21 (2026-04-01) · Total automated tests: **510** (+ 1 live-skipped)
+Last updated: v0.5.22 (2026-04-01) · Total automated tests: **553** (+ 1 live-skipped)
 
 ---
 
@@ -73,6 +73,7 @@ automated test suite — each scenario maps to one or more pytest tests.
 | v0.5.18 | Live Gamma Contract Snapshot Lock — Approach A: committed fixture (gamma_snapshot.json, 10 records covering all discovery outcomes); conftest.py with live marker; 22 fixture-based contract tests (A–F) + 1 @pytest.mark.live test (skipped by default); fixture documents expected Gamma API schema | fixture schema contract (field presence/type); pipeline normalization on fixture; discovery candidate/rejection counts; sync deterministic summary; cross-layer invariants on fixture; @pytest.mark.live path for real API shape verification | All prior contracts still hold | — |
 | v0.5.21 | Snapshot Refresh Trigger Policy Lock — Status B: on-demand + optional scheduled approach selected; added docs/testing/gamma_snapshot_refresh_policy.md (required triggers table, live-test-outcome→refresh-decision table, negative triggers, optional proactive cadence, trigger decision flowchart, cross-references); 27 new trigger policy tests (A–E); 510 total tests; 360 regression scenarios | required triggers (live-test FAILED/missing-key, [BREAKING DRIFT] alert, planned API upgrade) defined; negative triggers (SKIPPED, PASSED, connection error, value-only change) explicit; optional cadence non-mandatory and no cron/scheduler; policy consistent with workflow/ownership docs | All prior contracts still hold | Actual Gamma API upgrade announcements are an external signal outside automated testing |
 | v0.5.20 | Drift Response Ownership Lock — Status A: technical process sufficient, operational ownership undefined; added docs/testing/gamma_drift_response_roles.md (6-question ownership doc: roles, drift response matrix, live test → action table, fixture refresh checklist, decision matrix, cross-references); 29 new ownership contract tests (A–E); 483 total tests; 333 regression scenarios | ownership docs cover all 6 ownership questions; expected/breaking drift each have explicit owner + escalation path; live test states map to role-specific actions; fixture refresh checklist documents review-before-commit gate; ownership doc consistent with workflow doc + helper; operator is final decision authority | All prior contracts still hold | — |
+| v0.5.22 | Contract Atlas Lock — docs/testing/discovery_sync_contract_atlas.md created as single-page canonical index of all 13 locked/deferred contracts; Status A: no production changes; 43 new atlas contract tests (A–E); 553 total tests; 403 regression scenarios | atlas covers all 13 contract surfaces; LOCKED vs DEFERRED status explicit; atlas cross-references existing docs/testing structure; atlas consistent with runtime source files; open risks listed without re-opening closed decisions | All prior contracts still hold | — |
 | v0.5.19 | Upstream Drift Triage Workflow Lock — Status A: technical contracts sufficient, process contract missing; added tools/refresh_gamma_snapshot.py (manual CLI helper, REQUIRED_FIELDS/OPTIONAL_FIELDS constants, check_required_fields/check_optional_fields validation functions); added docs/testing/gamma_contract_workflow.md (6-question workflow doc: when/who/how to refresh, field sanitization, expected vs breaking drift classification, live test interpretation, fixture coverage requirements); 31 new drift triage workflow tests (A–E) | workflow docs cover all 6 required questions; expected vs breaking drift distinction explicit; helper script + docs reference same canonical fixture path; check_required_fields() fails loudly on missing shape; REQUIRED_FIELDS aligned with _normalize() runtime behaviour | All prior contracts still hold | Real Gamma API integration gap documented in gamma_contract_workflow.md |
 
 ---
@@ -396,6 +397,56 @@ code changes required.
 | DTW-029 | P1 | v0.5.19 | Workflow doc mentions every `OPTIONAL_FIELD` in its field table | Doc coverage complete | `test_workflow_doc_optional_field_table_includes_all_optional_fields` |
 | DTW-030 | P0 | v0.5.19 | Canonical fixture path constant matches actual file location | Path is not stale | `test_fixture_canonical_path_consistent_across_all_artifacts` |
 | DTW-031 | P0 | v0.5.19 | `REQUIRED_FIELDS` covers all discovery-critical fields | `active`, `closed`, `enableOrderBook`, `tokens`, `startDate`, `endDate` present | `test_helper_script_and_fetcher_agree_on_required_field_count` |
+
+---
+
+### 3.17 Contract Atlas Scenarios (v0.5.22)
+
+| ID | Pri | Version | Scenario | Expected | Test |
+|----|-----|---------|----------|----------|------|
+| CA-001 | P1 | v0.5.22 | Atlas document exists at expected path | `docs/testing/discovery_sync_contract_atlas.md` present | `TestContractAtlasCoversAllCanonicalContractSurfaces::test_atlas_exists` |
+| CA-002 | P0 | v0.5.22 | Atlas covers fetcher normalization contract | Entry present | `test_atlas_covers_fetcher_normalization` |
+| CA-003 | P0 | v0.5.22 | Atlas covers canonical text field normalization contract | Entry present | `test_atlas_covers_canonical_text_field_normalization` |
+| CA-004 | P0 | v0.5.22 | Atlas covers discovery selection contract | Entry present | `test_atlas_covers_discovery_selection` |
+| CA-005 | P0 | v0.5.22 | Atlas covers duration semantics contract | Entry present | `test_atlas_covers_duration_semantics` |
+| CA-006 | P0 | v0.5.22 | Atlas covers rejection taxonomy contract | Entry present | `test_atlas_covers_rejection_taxonomy` |
+| CA-007 | P0 | v0.5.22 | Atlas covers mapper multiplicity contract | Entry present | `test_atlas_covers_mapper_multiplicity` |
+| CA-008 | P0 | v0.5.22 | Atlas covers mapping failure semantics contract | Entry present | `test_atlas_covers_mapping_failure_semantics` |
+| CA-009 | P0 | v0.5.22 | Atlas covers sync summary semantics contract | Entry present | `test_atlas_covers_sync_summary_semantics` |
+| CA-010 | P0 | v0.5.22 | Atlas covers discover/sync alignment contract | Entry present | `test_atlas_covers_discover_sync_alignment` |
+| CA-011 | P0 | v0.5.22 | Atlas covers registry lifecycle contract | Entry present | `test_atlas_covers_registry_lifecycle` |
+| CA-012 | P0 | v0.5.22 | Atlas covers pipeline edge-state contracts | Entry present | `test_atlas_covers_pipeline_edge_state` |
+| CA-013 | P0 | v0.5.22 | Atlas covers live Gamma snapshot contract | Entry present | `test_atlas_covers_live_gamma_snapshot` |
+| CA-014 | P0 | v0.5.22 | Atlas covers drift triage / ownership / trigger policy | Entry present | `test_atlas_covers_drift_triage_ownership_trigger` |
+| CA-015 | P1 | v0.5.22 | Atlas has at least 13 contract sections | ≥13 numbered `## N.` headers | `test_atlas_has_at_least_13_contract_entries` |
+| CA-016 | P0 | v0.5.22 | Atlas uses LOCKED status keyword | `LOCKED` present | `test_atlas_uses_locked_status_keyword` |
+| CA-017 | P0 | v0.5.22 | Atlas uses DEFERRED status keyword | `DEFERRED` present | `test_atlas_uses_deferred_status_keyword` |
+| CA-018 | P0 | v0.5.22 | Registry lifecycle marked DEFERRED | `DEFERRED` + `lifecycle` present | `test_registry_lifecycle_is_marked_as_deferred` |
+| CA-019 | P1 | v0.5.22 | Atlas explains LOCKED meaning | Invariant / change-requires language present | `test_atlas_explains_locked_meaning` |
+| CA-020 | P1 | v0.5.22 | Atlas explains DEFERRED meaning | Intentionally / postponed language present | `test_atlas_explains_deferred_meaning` |
+| CA-021 | P1 | v0.5.22 | Atlas has deferred decisions table | Dedicated `Known Deferred Decisions` section | `test_deferred_decisions_table_present` |
+| CA-022 | P0 | v0.5.22 | Atlas cross-references regression matrix | `discovery_regression_matrix` in doc | `test_atlas_references_regression_matrix` |
+| CA-023 | P0 | v0.5.22 | Atlas cross-references gamma_contract_workflow | Reference present | `test_atlas_references_gamma_contract_workflow` |
+| CA-024 | P0 | v0.5.22 | Atlas cross-references gamma_drift_response_roles | Reference present | `test_atlas_references_gamma_drift_response_roles` |
+| CA-025 | P0 | v0.5.22 | Atlas cross-references gamma_snapshot_refresh_policy | Reference present | `test_atlas_references_gamma_snapshot_refresh_policy` |
+| CA-026 | P1 | v0.5.22 | Atlas references ≥10 test files | At least 10 of 15 expected test file refs present | `test_atlas_references_key_test_files` |
+| CA-027 | P1 | v0.5.22 | Atlas has Quick Navigation section | Navigation section present | `test_atlas_has_quick_navigation_section` |
+| CA-028 | P0 | v0.5.22 | Atlas states correct MARKETS_PER_CANDIDATE = 2 | `exactly **2**` or equivalent language | `test_atlas_states_correct_markets_per_candidate` |
+| CA-029 | P0 | v0.5.22 | Atlas states 5 discovery rejection rules | `Five` or `5` in context | `test_atlas_states_correct_number_of_discovery_rules` |
+| CA-030 | P0 | v0.5.22 | Atlas states 3 pipeline gates | `Three` or `3` in context | `test_atlas_states_correct_number_of_pipeline_gates` |
+| CA-031 | P0 | v0.5.22 | Atlas rejection rule names match runtime enum | All 5 RejectionReason names present | `test_atlas_rejection_rules_match_runtime` |
+| CA-032 | P1 | v0.5.22 | Atlas-referenced source files exist on disk | market_fetcher.py, market_discovery.py, market_sync.py exist | `test_atlas_source_files_mentioned_exist` |
+| CA-033 | P0 | v0.5.22 | Atlas gamma_snapshot.json reference correct | Path present + file exists | `test_atlas_gamma_fixture_reference_is_correct` |
+| CA-034 | P0 | v0.5.22 | Atlas pipeline invariant consistent with code | `skipped_mapping` / `mapped` formula present | `test_atlas_pipeline_invariant_consistent_with_code` |
+| CA-035 | P0 | v0.5.22 | Atlas has Open Risks field per entry | `Open risks` section present | `test_atlas_has_open_risks_field_per_entry` |
+| CA-036 | P1 | v0.5.22 | Stale entry accumulation listed as open risk | `stale` mentioned | `test_stale_entry_cleanup_listed_as_open_risk` |
+| CA-037 | P1 | v0.5.22 | Gamma API shape drift listed as open risk | drift/changes/refresh mentioned in context | `test_gamma_api_shape_drift_listed_as_open_risk` |
+| CA-038 | P0 | v0.5.22 | Duration rule not re-opened | No `reopen/reconsider` in duration section | `test_no_reopened_decisions_for_duration_rule` |
+| CA-039 | P0 | v0.5.22 | 5-rule discovery not re-opened | No `reopen/reconsider` in discovery section | `test_no_reopened_decisions_for_5_rule_discovery` |
+| CA-040 | P0 | v0.5.22 | Registry add-only confirmed locked | `add-only` language present | `test_no_reopened_decisions_for_registry_add_only` |
+| CA-041 | P1 | v0.5.22 | Deferred items presented as conscious decisions | `deliberate/intentional/conscious` language present | `test_deferred_items_marked_not_gaps` |
+| CA-042 | P1 | v0.5.22 | Most contracts (≥12) are LOCKED | ≥12 LOCKED occurrences in doc | `test_most_contracts_are_locked` |
+| CA-043 | P1 | v0.5.22 | All referenced supporting docs exist on disk | 4 doc files all exist | `test_all_referenced_docs_exist` |
 
 ---
 
