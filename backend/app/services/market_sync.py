@@ -66,6 +66,10 @@ class SyncResult:
                          rejected by discovery are invisible here.
     mapped             — domain Market objects successfully produced
                          (= written + skipped_duplicate, when mapping succeeds).
+                         Each successfully mapped candidate contributes exactly
+                         MarketMapper.MARKETS_PER_CANDIDATE (2) objects: one
+                         UP and one DOWN.  So: mapped = successful_candidates × 2.
+                         Note: mapped counts Market objects, not candidates.
     written            — new Markets written to the registry in this call.
     skipped_mapping    — candidates whose mapper() call returned [].
     skipped_duplicate  — candidates whose registry key already existed
@@ -134,6 +138,26 @@ class MarketMapper:
     NO (DOWN).  Each side becomes an independent Market entry so downstream
     logic can track them separately.
 
+    Multiplicity contract
+    --------------------
+    map() returns EXACTLY 2 Market objects per successful candidate:
+      [{market_id}-up  (Side.UP),
+       {market_id}-down (Side.DOWN)]
+
+    This is a canonical contract, not an implementation detail:
+      - Polymarket binary markets are fundamentally YES/NO structures.
+      - POLYMAX tracks both sides independently for position management.
+      - SyncResult.mapped counts these 2-per-candidate objects; therefore
+        mapped == (number of successfully mapped candidates) × 2.
+
+    Failure case: map() returns [] (empty list) when domain object creation
+    fails (e.g., invalid market_id).  The candidate is then counted as
+    skipped_mapping, not in mapped.
+
+    Future extensibility: If a future market type produces a different number
+    of sides, this contract must be explicitly revisited.  The tests in
+    test_mapper_multiplicity_contract.py will fail, surfacing the change.
+
     Symbol resolution order:
     1. extract_symbol(question, slug) — regex/keyword extraction for known coins.
     2. slug — raw slug as fallback when no coin is recognised.
@@ -142,8 +166,15 @@ class MarketMapper:
     Timeframe is always M5 — the only timeframe POLYMAX currently supports.
     """
 
+    #: The exact number of domain Markets produced per successfully mapped candidate.
+    MARKETS_PER_CANDIDATE: int = 2
+
     def map(self, fetched: FetchedMarket) -> list[Market]:
-        """Return [UP market, DOWN market] or [] on failure."""
+        """Return [UP market, DOWN market] or [] on failure.
+
+        On success: always returns exactly MARKETS_PER_CANDIDATE (2) Market objects.
+        On failure: returns [] and logs a warning; caller counts as skipped_mapping.
+        """
         try:
             symbol = (
                 extract_symbol(fetched.question, fetched.slug)
