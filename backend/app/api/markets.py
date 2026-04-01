@@ -156,7 +156,7 @@ def trigger_discover(
         fetched_count=result.fetched_count,
         candidate_count=result.candidate_count,
         rejected_count=result.rejected_count,
-        rejection_breakdown={r.value: count for r, count in result.rejection_breakdown.items()},
+        rejection_breakdown=result.string_breakdown,
     )
 
 

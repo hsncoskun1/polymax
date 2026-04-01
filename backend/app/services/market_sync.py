@@ -239,10 +239,7 @@ class MarketSyncService:
             skipped_duplicate=skipped_duplicate,
             registry_total=len(self._registry),
             rejected_count=discovery_result.rejected_count,
-            rejection_breakdown={
-                r.value: count
-                for r, count in discovery_result.rejection_breakdown.items()
-            },
+            rejection_breakdown=discovery_result.string_breakdown,
         )
         logger.info(
             "Sync complete — fetched=%d rejected=%d mapped=%d written=%d "

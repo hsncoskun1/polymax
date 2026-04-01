@@ -73,6 +73,20 @@ class DiscoveryResult:
     rejection_breakdown:
         How many records were rejected for each RejectionReason.
         Every RejectionReason key is always present (value may be 0).
+        Keyed by RejectionReason enum members (internal representation).
+        Use string_breakdown for serialization.
+
+    Taxonomy contract
+    -----------------
+    The canonical source of rejection reason identifiers is the
+    RejectionReason enum.  string_breakdown serializes it to string keys
+    by calling r.value — this is the ONLY place that conversion is done.
+    All callers (MarketSyncService, API endpoints) MUST use string_breakdown
+    rather than repeating the conversion, to prevent silent taxonomy drift.
+
+    Zero-count policy: all five RejectionReason keys are always present in
+    rejection_breakdown (value may be 0).  This is enforced by
+    DiscoveryService.evaluate() and guaranteed by string_breakdown.
     """
 
     fetched_count: int
@@ -80,6 +94,16 @@ class DiscoveryResult:
     rejected_count: int
     candidates: list[FetchedMarket]
     rejection_breakdown: dict[RejectionReason, int]
+
+    @property
+    def string_breakdown(self) -> dict[str, int]:
+        """Return rejection_breakdown keyed by canonical string values.
+
+        This is the single authoritative enum→string serialization point.
+        Every RejectionReason key is always present (value may be 0).
+        Callers must use this property instead of repeating r.value conversion.
+        """
+        return {r.value: count for r, count in self.rejection_breakdown.items()}
 
 
 # ---------------------------------------------------------------------------
