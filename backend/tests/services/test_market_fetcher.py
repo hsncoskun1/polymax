@@ -194,6 +194,51 @@ class TestNormalization:
         result = service.fetch_markets()
         assert result[0].end_date is None
 
+    def test_enable_order_book_true_when_present(self):
+        raw = _raw_market(enableOrderBook=True)
+        service = PolymarketFetchService(_make_client([raw]))
+        result = service.fetch_markets()
+        assert result[0].enable_order_book is True
+
+    def test_enable_order_book_false_when_false(self):
+        raw = _raw_market(enableOrderBook=False)
+        service = PolymarketFetchService(_make_client([raw]))
+        result = service.fetch_markets()
+        assert result[0].enable_order_book is False
+
+    def test_enable_order_book_none_when_absent(self):
+        raw = _raw_market()
+        del raw["enableOrderBook"]
+        service = PolymarketFetchService(_make_client([raw]))
+        result = service.fetch_markets()
+        assert result[0].enable_order_book is None
+
+    def test_tokens_list_preserved(self):
+        tok = [{"outcome": "YES"}, {"outcome": "NO"}]
+        raw = _raw_market(tokens=tok)
+        service = PolymarketFetchService(_make_client([raw]))
+        result = service.fetch_markets()
+        assert result[0].tokens == tok
+
+    def test_tokens_empty_list_preserved(self):
+        raw = _raw_market(tokens=[])
+        service = PolymarketFetchService(_make_client([raw]))
+        result = service.fetch_markets()
+        assert result[0].tokens == []
+
+    def test_tokens_none_when_absent(self):
+        raw = _raw_market()
+        del raw["tokens"]
+        service = PolymarketFetchService(_make_client([raw]))
+        result = service.fetch_markets()
+        assert result[0].tokens is None
+
+    def test_tokens_none_when_not_a_list(self):
+        raw = _raw_market(tokens="invalid")
+        service = PolymarketFetchService(_make_client([raw]))
+        result = service.fetch_markets()
+        assert result[0].tokens is None
+
 
 # ---------------------------------------------------------------------------
 # fetch_candidates (5m filter placeholder)

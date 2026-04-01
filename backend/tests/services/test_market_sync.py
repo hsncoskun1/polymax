@@ -29,7 +29,11 @@ def _fetched(
     closed: bool = False,
     source_timestamp: datetime | None = _BASE_START,
     end_date: datetime | None = _VALID_END,
+    enable_order_book: bool | None = True,
+    tokens: list | None = None,
 ) -> FetchedMarket:
+    if tokens is None:
+        tokens = [{"outcome": "YES"}, {"outcome": "NO"}]
     return FetchedMarket(
         market_id=market_id,
         question="Will BTC hit 100k?",
@@ -39,6 +43,8 @@ def _fetched(
         closed=closed,
         source_timestamp=source_timestamp,
         end_date=end_date,
+        enable_order_book=enable_order_book,
+        tokens=tokens,
     )
 
 
@@ -231,6 +237,8 @@ class TestMarketSyncService:
             closed=False,
             source_timestamp=_BASE_START,  # valid → passes discovery
             end_date=_VALID_END,           # valid → passes discovery
+            enable_order_book=True,        # valid → passes discovery
+            tokens=[{"outcome": "YES"}],   # valid → passes discovery
         )
         registry = InMemoryMarketRegistry()
         fetcher = _mock_fetcher([bad, _fetched("good-1")])

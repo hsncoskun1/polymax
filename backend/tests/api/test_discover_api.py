@@ -30,7 +30,11 @@ def _fetched(
     closed: bool = False,
     source_timestamp: datetime | None = _BASE_START,
     end_date: datetime | None = _VALID_END,
+    enable_order_book: bool | None = True,
+    tokens: list | None = None,
 ) -> FetchedMarket:
+    if tokens is None:
+        tokens = [{"outcome": "YES"}, {"outcome": "NO"}]
     return FetchedMarket(
         market_id=market_id,
         question="Will BTC hit 100k?",
@@ -40,6 +44,8 @@ def _fetched(
         closed=closed,
         source_timestamp=source_timestamp,
         end_date=end_date,
+        enable_order_book=enable_order_book,
+        tokens=tokens,
     )
 
 
@@ -117,6 +123,8 @@ async def test_discover_empty_fetch():
         assert data["candidate_count"] == 0
         assert data["rejected_count"] == 0
         assert data["rejection_breakdown"]["inactive"] == 0
+        assert data["rejection_breakdown"]["no_order_book"] == 0
+        assert data["rejection_breakdown"]["empty_tokens"] == 0
         assert data["rejection_breakdown"]["missing_dates"] == 0
         assert data["rejection_breakdown"]["duration_out_of_range"] == 0
     finally:
@@ -155,6 +163,8 @@ async def test_discover_breakdown_all_keys_present():
             resp = await c.post("/api/v1/markets/discover")
         breakdown = resp.json()["rejection_breakdown"]
         assert "inactive" in breakdown
+        assert "no_order_book" in breakdown
+        assert "empty_tokens" in breakdown
         assert "missing_dates" in breakdown
         assert "duration_out_of_range" in breakdown
     finally:
