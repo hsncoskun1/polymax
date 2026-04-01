@@ -3,7 +3,7 @@
 **Living document — update with every version that changes behaviour in the
 fetch → discovery → sync → API chain.**
 
-Last updated: v0.5.10 (2026-04-01) · Total automated tests: **286**
+Last updated: v0.5.11 (2026-04-01) · Total automated tests: **296**
 
 ---
 
@@ -63,6 +63,7 @@ automated test suite — each scenario maps to one or more pytest tests.
 | v0.5.8 | Sync Summary Semantics Lock — SyncResult.registry_total added; SyncResponse.registry_total_count added; SyncResult docstring clarified (fetched=candidates not raw fetch); 12 new tests | Summary semantics: processing window only; fetched≠raw API count; registry_total exposes full registry size including stale | All prior contracts still hold | — |
 | v0.5.9 | Rejection Observability Lock — SyncResult.rejected_count + rejection_breakdown added; SyncResponse exposes both fields; 14 new tests | rejected_count surfaces non-candidates; breakdown is always 5-key complete; fetched + rejected_count = total input; API passes fields through; observability read-only w.r.t. registry behavior | All prior contracts still hold | — |
 | v0.5.10 | Rejection Taxonomy Contract Lock — DiscoveryResult.string_breakdown property added as single canonical enum→string serialization point; 15 new taxonomy contract tests | Canonical source: RejectionReason enum; single serialization point (string_breakdown property); zero-count policy documented; drift detection locked; docs/runtime alignment verified | All prior contracts still hold | Duplicate r.value conversions in market_sync.py and discover endpoint retired |
+| v0.5.11 | Discover/Sync Contract Alignment Lock — DiscoveryResponse docstring expanded with intentional differences; 10 new alignment tests | candidate alignment: discover.candidate_count==sync.fetched_count; shared taxonomy/zero-count; intentional fetched_count difference documented; operator consistency under mixed payload; no behavioral changes | All prior contracts still hold | — |
 
 ---
 
@@ -302,7 +303,8 @@ behaviour that was intentionally removed.
 | Sync Summary Semantics | 12 | 12 | 0 | 0 |
 | Rejection Observability | 14 | 14 | 0 | 0 |
 | Rejection Taxonomy Contract | 15 | 15 | 0 | 0 |
-| **Total** | **135** | **135** | **0** | **0** |
+| Discover/Sync Contract Alignment | 10 | 10 | 0 | 0 |
+| **Total** | **145** | **145** | **0** | **0** |
 
 ### Known automation gaps
 
@@ -357,7 +359,7 @@ Covers: FETCH-001/002, DISC-ACC-001/005, DISC-REJ-001/004/005/006/007/008/009/01
 python -m pytest backend/tests/ -v
 ```
 
-All 286 tests. Current runtime: ~0.8 seconds.
+All 296 tests. Current runtime: ~0.8 seconds.
 
 ### Full regression (run after major architecture changes)
 

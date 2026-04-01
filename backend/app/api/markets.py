@@ -91,6 +91,31 @@ class DiscoveryResponse(BaseModel):
     """Summary of a single manual discovery run.
 
     Fetch → evaluate only — no registry writes, no side effects.
+
+    Field semantics
+    ---------------
+    fetched_count   — total raw input evaluated by DiscoveryService
+                      (candidates + rejected_count = fetched_count).
+    candidate_count — markets that passed all discovery rules.
+    rejected_count  — markets that failed at least one discovery rule.
+    rejection_breakdown — per-reason counts (canonical 5-key taxonomy;
+                      all keys always present; 0 if no rejections for that
+                      reason).
+
+    Relationship to POST /sync
+    --------------------------
+    For the same raw payload both endpoints share the same discovery basis:
+      discover.candidate_count  == sync.fetched_count
+      discover.fetched_count    == sync.fetched_count + sync.rejected_count
+      discover.rejected_count   == sync.rejected_count
+      discover.rejection_breakdown == sync.rejection_breakdown
+
+    Intentional differences (by design, not drift):
+      /discover — discovery view: how many passed/failed evaluation.
+      /sync     — processing + registry view: what was mapped and written.
+      fetched_count means different things:
+        /discover: total raw input (candidates + rejected)
+        /sync: candidates only (rejected not counted in fetched_count)
     """
 
     fetched_count: int
