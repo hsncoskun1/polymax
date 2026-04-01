@@ -85,6 +85,7 @@ function SyncSummary({ result }: { result: SyncResult }) {
     ["Written", result.written_count],
     ["Skipped (mapping)", result.skipped_mapping_count],
     ["Skipped (duplicate)", result.skipped_duplicate_count],
+    ["Registry total", result.registry_total_count],
   ];
 
   return (

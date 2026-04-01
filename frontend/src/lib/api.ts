@@ -13,6 +13,7 @@ export interface Market {
   side: Side;
   status: MarketStatus;
   source_timestamp: string | null;
+  end_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +30,7 @@ export interface SyncResult {
   written_count: number;
   skipped_mapping_count: number;
   skipped_duplicate_count: number;
+  registry_total_count: number;
 }
 
 export async function triggerSync(): Promise<SyncResult> {

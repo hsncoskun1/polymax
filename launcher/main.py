@@ -10,10 +10,23 @@ from urllib.request import urlopen
 from urllib.error import URLError
 
 ROOT = Path(__file__).resolve().parent.parent
-BACKEND_HOST = "127.0.0.1"
-BACKEND_PORT = 8000
-FRONTEND_HOST = "127.0.0.1"
-FRONTEND_PORT = 5173
+
+# Read host/port from config/default.toml so there is a single source of truth.
+# Fall back to defaults only if config is unavailable.
+def _load_launcher_config() -> dict:
+    try:
+        import tomli
+        config_path = ROOT / "config" / "default.toml"
+        with open(config_path, "rb") as f:
+            return tomli.load(f)
+    except Exception:
+        return {}
+
+_cfg = _load_launcher_config()
+BACKEND_HOST  = _cfg.get("backend",  {}).get("host", "127.0.0.1")
+BACKEND_PORT  = _cfg.get("backend",  {}).get("port", 8000)
+FRONTEND_HOST = _cfg.get("frontend", {}).get("host", "127.0.0.1")
+FRONTEND_PORT = _cfg.get("frontend", {}).get("port", 5173)
 READY_TIMEOUT = 30  # seconds
 POLL_INTERVAL = 0.5
 

@@ -18,6 +18,7 @@ const MOCK_MARKETS: Market[] = [
     side: "up",
     status: "active",
     source_timestamp: null,
+    end_date: null,
     created_at: "2026-04-01T00:00:00Z",
     updated_at: "2026-04-01T00:00:00Z",
   },
@@ -89,6 +90,7 @@ const MOCK_SYNC_RESULT = {
   written_count: 4,
   skipped_mapping_count: 0,
   skipped_duplicate_count: 0,
+  registry_total_count: 4,
 };
 
 describe("SyncAction", () => {
