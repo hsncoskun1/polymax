@@ -3,7 +3,7 @@
 **Living document — update with every version that changes behaviour in the
 fetch → discovery → sync → API chain.**
 
-Last updated: v0.5.5b (2026-04-01) · Total automated tests: **216**
+Last updated: v0.5.6 (2026-04-01) · Total automated tests: **234**
 
 ---
 
@@ -58,6 +58,7 @@ automated test suite — each scenario maps to one or more pytest tests.
 | v0.5.5 | Integration test suite — 4 contracts locked (C1–C4) | End-to-end chain from raw dict to API response | All prior unit-level contracts | — |
 | v0.5.5a | Duration semantics locked — total duration not remaining time | Near-expiry valid markets always pass discovery | Duration uses `end_date − source_timestamp` | — |
 | v0.5.5b | Duration source semantics locked — `source_timestamp` confirmed as event start time (`startDate`) | Semantic chain `startDate → source_timestamp → duration` is test-locked | Domain model comment corrected from "freshness from upstream" to "event start time" | — |
+| v0.5.6 | Sync / Registry Behavior Lock — 5 registry contracts (C1–C5) + Scenario G (previously-valid market handling) + API summary integrity | Registry key format, add-only semantics, no-update-on-resync, C4 per-reason guards, mixed-payload determinism, registry stays after invalid transition, POST /sync response matches registry state | All prior sync + discovery contracts still hold | — |
 
 ---
 
@@ -210,6 +211,31 @@ Rules are applied in order; the first failing rule wins.
 
 ---
 
+### 3.11 Sync / Registry Behavior Scenarios (v0.5.6)
+
+These scenarios lock the contracts governing how discovery candidates flow into
+the `InMemoryMarketRegistry` and what the registry looks like after sync.
+
+**Registry key contract:** `{market_id}-up` and `{market_id}-down`
+**Write semantic:** Add-only. `DuplicateMarketError` on re-add → `skipped_duplicate` incremented.
+**Update semantic:** None. Re-syncing the same market with changed fields preserves the original entry.
+**Stale market handling:** No automatic removal or deactivation — registry is append-only.
+
+| ID | Pri | Introduced | Scenario | Expected Result | Automated Test |
+|----|-----|------------|----------|-----------------|----------------|
+| SRB-001 | P0 | v0.5.6 | Valid 5m market produces UP + DOWN registry entries | 2 entries; keys `{id}-up` / `{id}-down`; `written=2` | `TestSyncRegistryContractC1::test_sync_adds_new_valid_candidate_to_registry` · `test_registry_key_format_is_market_id_hyphen_side` |
+| SRB-002 | P0 | v0.5.6 | Written market fields match source payload | `side`, `timeframe=M5`, `status=ACTIVE`, `source_timestamp`, `end_date`, `event_id` all correct | `TestSyncRegistryContractC1::test_registry_market_fields_are_populated_correctly` |
+| SRB-003 | P0 | v0.5.6 | Same valid market synced twice → no duplicate entry | Registry count unchanged; second run `written=0`, `skipped_duplicate=2` | `TestSyncRegistryContractC2::test_sync_repeated_same_market_does_not_create_duplicate` |
+| SRB-004 | P1 | v0.5.6 | `SyncResult.skipped_duplicate` accurately counts all skipped re-adds | 2 candidates × 2 sides = 4 skipped on full re-sync | `TestSyncRegistryContractC2::test_sync_result_counts_skipped_duplicates_correctly` |
+| SRB-005 | P0 | v0.5.6 | Re-sync of market with changed content keeps original registry entry (first-write-wins) | Original symbol / fields unchanged; second run `written=0`, `skipped_duplicate=2` | `TestSyncRegistryContractC3::test_sync_second_pass_same_market_preserves_original_fields_no_update` |
+| SRB-006 | P0 | v0.5.6 | Each of the 5 rejection reasons independently prevents registry write | `written=0` for INACTIVE/CLOSED/NO_ORDER_BOOK/EMPTY_TOKENS/MISSING_DATES/DURATION_OUT_OF_RANGE | `TestSyncRegistryContractC4::test_sync_does_not_add_inactive_active_false` · `test_sync_does_not_add_inactive_closed_true` · `test_sync_does_not_add_no_order_book` · `test_sync_does_not_add_empty_tokens` · `test_sync_does_not_add_missing_dates` · `test_sync_does_not_add_duration_out_of_range` |
+| SRB-007 | P0 | v0.5.6 | Mixed payload: new + pre-existing + invalid + duplicate → deterministic final state | Only new candidates written; existing skipped; invalid excluded; final registry exactly correct | `TestSyncRegistryContractC5::test_sync_mixed_payload_results_in_expected_registry_state` |
+| SRB-008 | P1 | v0.5.6 | Multiple valid candidates all written in same sync | `N candidates × 2 = 2N` registry entries | `TestSyncRegistryContractC5::test_sync_multiple_valid_candidates_all_written` |
+| SRB-009 | P0 | v0.5.6 | (Scenario G) Previously-valid market becomes inactive on next sync → stays in registry | Original UP + DOWN entries unchanged; no automatic removal | `TestPreviouslyValidMarketBecomingInvalid::test_market_stays_in_registry_after_becoming_inactive` · `test_market_stays_in_registry_after_losing_order_book` |
+| SRB-010 | P0 | v0.5.6 | `POST /sync` response summary is consistent with actual registry final state | `fetched_count`, `written_count` match registry `len()` and entry IDs | `test_sync_endpoint_response_summary_matches_registry_final_state` |
+
+---
+
 ### 3.10 Retired / Deprecated Scenarios
 
 These scenarios **must not** be used as regression criteria. They described
@@ -239,14 +265,15 @@ behaviour that was intentionally removed.
 | Sync Propagation | 8 | 8 | 0 | 0 |
 | API Response | 11 | 11 | 0 | 0 |
 | Edge Cases | 7 | 7 | 0 | 0 |
-| **Total** | **73** | **73** | **0** | **0** |
+| Sync Registry Behavior | 10 | 10 | 0 | 0 |
+| **Total** | **83** | **83** | **0** | **0** |
 
 ### Known automation gaps
 
 | Gap | Risk | Recommended Action |
 |-----|------|-------------------|
 | Real Gamma API integration (live HTTP) | API shape changes undetected | E2E/contract test suite (future milestone) |
-| `POST /sync` endpoint at integration level (real fetcher+discovery, mock client) | Sync endpoint response mismatch | Add `test_sync_endpoint_integration.py` alongside discovery flow |
+| `POST /sync` endpoint at integration level (real fetcher+discovery, mock client) | Sync endpoint response mismatch | ✅ Covered in v0.5.6 — `test_sync_endpoint_response_summary_matches_registry_final_state` |
 | Concurrent registry writes | Race condition on parallel syncs | Applicable only when scheduler is added |
 | `end_date` field on `POST /sync` response | Payload drift | Currently no sync response includes per-market details |
 
@@ -275,11 +302,16 @@ python -m pytest backend/tests/ -m "not slow" -k "
   test_discover_endpoint_mixed_payload_returns_only_candidates or
   TestDiscoveryIsTheSoleSelector or
   TestSyncRespectsDiscovery or
-  TestDurationSemantics
+  TestDurationSemantics or
+  TestSyncRegistryContractC1 or
+  TestSyncRegistryContractC4 or
+  TestSyncRegistryContractC5 or
+  TestPreviouslyValidMarketBecomingInvalid or
+  test_sync_endpoint_response_summary_matches_registry_final_state
 " -v
 ```
 
-Covers: FETCH-001/002, DISC-ACC-001/005, DISC-REJ-001/004/005/006/007/008/009/010/011, DUR-001/002/007, SYNC-001/002/003/007, API-003/004/005
+Covers: FETCH-001/002, DISC-ACC-001/005, DISC-REJ-001/004/005/006/007/008/009/010/011, DUR-001/002/007, SYNC-001/002/003/007, API-003/004/005, SRB-001/002/006/007/009/010
 
 ### Standard regression (run before every release)
 
@@ -289,7 +321,7 @@ Covers: FETCH-001/002, DISC-ACC-001/005, DISC-REJ-001/004/005/006/007/008/009/01
 python -m pytest backend/tests/ -v
 ```
 
-All 213 tests. Current runtime: ~0.7 seconds.
+All 234 tests. Current runtime: ~0.8 seconds.
 
 ### Full regression (run after major architecture changes)
 
