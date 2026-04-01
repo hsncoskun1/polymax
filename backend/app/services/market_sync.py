@@ -13,6 +13,7 @@ from ..domain.market.models import Market, create_market
 from ..domain.market.registry import MarketRegistry
 from ..domain.market.types import Side, Timeframe
 from .market_fetcher import FetchedMarket, PolymarketFetchService
+from .symbol_extractor import extract_symbol
 from ..integrations.polymarket.config import DEFAULT_MARKET_LIMIT
 
 logger = logging.getLogger(__name__)
@@ -46,16 +47,22 @@ class MarketMapper:
     NO (DOWN).  Each side becomes an independent Market entry so downstream
     logic can track them separately.
 
-    Placeholders in this shell:
-    - *symbol*: slug when available, otherwise market_id.  A future
-      classification step will replace this with the proper coin ticker.
-    - *timeframe*: always M5 — the only timeframe POLYMAX currently supports.
+    Symbol resolution order:
+    1. extract_symbol(question, slug) — regex/keyword extraction for known coins.
+    2. slug — raw slug as fallback when no coin is recognised.
+    3. market_id — last resort when slug is also absent.
+
+    Timeframe is always M5 — the only timeframe POLYMAX currently supports.
     """
 
     def map(self, fetched: FetchedMarket) -> list[Market]:
         """Return [UP market, DOWN market] or [] on failure."""
         try:
-            symbol = fetched.slug or fetched.market_id
+            symbol = (
+                extract_symbol(fetched.question, fetched.slug)
+                or fetched.slug
+                or fetched.market_id
+            )
             event_id = fetched.event_id or fetched.market_id
 
             return [

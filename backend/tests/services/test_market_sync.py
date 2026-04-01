@@ -61,14 +61,44 @@ class TestMarketMapper:
         ids = {m.id for m in markets}
         assert ids == {"abc-up", "abc-down"}
 
-    def test_uses_slug_as_symbol(self):
+    def test_extracts_known_symbol_from_question(self):
+        # question contains "BTC" → extract_symbol returns "BTC"
         mapper = MarketMapper()
-        markets = mapper.map(_fetched(slug="eth-flip"))
-        assert all(m.symbol == "eth-flip" for m in markets)
+        markets = mapper.map(_fetched(slug="some-slug"))
+        assert all(m.symbol == "BTC" for m in markets)  # _fetched() question = "Will BTC hit 100k?"
 
-    def test_falls_back_to_market_id_when_slug_none(self):
+    def test_uses_slug_when_symbol_not_extracted(self):
+        # question has no coin keyword; slug used as fallback
         mapper = MarketMapper()
-        markets = mapper.map(_fetched(market_id="x-99", slug=None))
+        markets = mapper.map(
+            FetchedMarket(
+                market_id="m-1",
+                question="Will the market go up?",
+                event_id="evt-1",
+                slug="some-unknown-slug",
+                active=True,
+                closed=False,
+                source_timestamp=None,
+                end_date=None,
+            )
+        )
+        assert all(m.symbol == "some-unknown-slug" for m in markets)
+
+    def test_falls_back_to_market_id_when_slug_none_and_no_extraction(self):
+        # no extractable symbol, no slug → market_id used
+        mapper = MarketMapper()
+        markets = mapper.map(
+            FetchedMarket(
+                market_id="x-99",
+                question="Will the price go higher?",
+                event_id=None,
+                slug=None,
+                active=True,
+                closed=False,
+                source_timestamp=None,
+                end_date=None,
+            )
+        )
         assert all(m.symbol == "x-99" for m in markets)
 
     def test_uses_event_id_when_present(self):

@@ -24,6 +24,7 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.3.6 Sync → market list refresh flow (refreshKey callback chain) — complete
 - v0.3.7 5m candidate cleanup (enableOrderBook + tokens gates) — complete
 - v0.3.8 5m duration filter (endDate-based candidate gate, [240-360] s window) — complete
+- v0.3.9 Symbol extraction shell (question/slug → BTC/ETH/SOL via regex + keyword catalogue) — complete
 
 ## Quick Start
 
