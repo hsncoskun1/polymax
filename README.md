@@ -31,6 +31,9 @@ Local-first trading platform. Fetches, classifies, and monitors short-term crypt
 - v0.4.2 Manual discovery API (POST /api/v1/markets/discover — fetch → evaluate, no registry write) — complete
 - v0.4.3 Admin discovery action UI (Discover now button + candidate/rejection summary card) — complete
 
+### Market Model (v0.5.x)
+- v0.5.1 Market domain end_date (end_date field on Market model, mapper propagation) — complete
+
 ## Quick Start
 
 ### Launch Everything
